@@ -1,0 +1,65 @@
+"""Task 相关的 API / 领域模型（Pydantic）。
+
+对应 PRD F-001（TaskCreate）、§5（API 契约）。
+M1 最小范围：权限、创建请求、响应。校验委托 models/validators.py。
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel, Field, field_validator
+
+from .enums import OutputLanguage, TaskStatus
+from .validators import RepoUrlError, validate_repo_urls
+
+
+class TaskPermissions(BaseModel):
+    """任务权限开关（PRD F-001）。默认保守。"""
+
+    allow_web_search: bool = False
+    allow_repo_clone: bool = True
+    allow_smoke_test: bool = False
+    allow_dependency_install: bool = False
+    has_gpu: bool = False
+    max_runtime_minutes: int = Field(default=30, ge=1, le=24 * 60)
+
+
+class TaskCreateRequest(BaseModel):
+    """创建任务请求体（PRD F-001）。"""
+
+    goal: str = Field(min_length=1, max_length=4000)
+    repo_urls: list[str] = Field(min_length=1, max_length=5)
+    paper_urls: list[str] = Field(default_factory=list)
+    output_language: OutputLanguage = OutputLanguage.ZH
+    template: str | None = None
+    permissions: TaskPermissions = Field(default_factory=TaskPermissions)
+
+    @field_validator("repo_urls")
+    @classmethod
+    def _check_repo_urls(cls, v: list[str]) -> list[str]:
+        try:
+            return validate_repo_urls(v)
+        except RepoUrlError as exc:
+            raise ValueError(str(exc)) from exc
+
+
+class TaskResponse(BaseModel):
+    """任务详情响应（PRD §5）。"""
+
+    task_id: str
+    goal: str
+    status: TaskStatus
+    repo_urls: list[str]
+    paper_urls: list[str]
+    output_language: OutputLanguage
+    template: str | None = None
+    permissions: TaskPermissions
+    created_at: datetime
+
+
+class TaskCreateResponse(BaseModel):
+    """创建任务响应（PRD F-001：返回 task_id + status=PLANNING）。"""
+
+    task_id: str
+    status: TaskStatus

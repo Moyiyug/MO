@@ -1,0 +1,32 @@
+# MO 后端核心依赖 (P1)
+# Web 框架
+fastapi
+uvicorn[standard]
+sse-starlette
+python-multipart
+
+# 数据校验 / 配置
+pydantic
+pydantic-settings
+
+# Agent 编排
+langgraph
+langgraph-checkpoint-sqlite
+langchain-core
+
+# 存储 / 检索
+sqlmodel
+chromadb
+
+# 模型路由 / HTTP
+httpx
+litellm
+
+# 工具
+python-dotenv
+
+# 测试
+pytest
+pytest-asyncio
+pytest-cov
+respx

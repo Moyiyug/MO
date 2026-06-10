@@ -1,0 +1,40 @@
+# Python
+apps/api/.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+
+# Python 工具缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+apps/web/node_modules/
+apps/web/dist/
+*.log
+
+# 上游仓库 (按需 vendor, 不纳入主仓库版本控制)
+external/
+
+# 运行时产物
+runtime/repos/
+runtime/reports/
+runtime/indexes/
+runtime/*.db
+
+# IDE / 系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 项目上下文文档与 AGENTS.md
+docs/
+AGENTS.md
+
+/.cursor
