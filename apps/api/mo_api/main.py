@@ -16,7 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
-from .routers import plans, tasks
+from .adapters.model_gateway.gateway import ModelCallError, ModelConfigError
+from .routers import events, models, plans, repos_evidence, tasks
+from .services.event_bus import get_event_bus
+from .services.execution_service import get_execution_service
 from .storage.db import init_db
 
 logger = logging.getLogger("mo_api")
@@ -25,6 +28,8 @@ logger = logging.getLogger("mo_api")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    app.state.event_bus = get_event_bus()
+    app.state.execution_service = get_execution_service()
     yield
 
 
@@ -39,6 +44,21 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.exception_handler(ModelConfigError)
+    async def _model_config_handler(request: Request, exc: ModelConfigError):
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"error": "model_config_error", "detail": str(exc)},
+        )
+
+    @app.exception_handler(ModelCallError)
+    async def _model_call_handler(request: Request, exc: ModelCallError):
+        logger.warning("model call error on %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"error": "model_call_error", "detail": str(exc)},
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_handler(request: Request, exc: RequestValidationError):
@@ -65,6 +85,9 @@ def create_app() -> FastAPI:
 
     app.include_router(tasks.router)
     app.include_router(plans.router)
+    app.include_router(events.router)
+    app.include_router(models.router)
+    app.include_router(repos_evidence.router)
     return app
 
 

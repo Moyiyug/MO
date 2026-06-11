@@ -17,3 +17,7 @@ class MOState(TypedDict, total=False):
     plan: dict[str, Any]
     pending_approval: dict[str, Any] | None
     errors: list[dict[str, Any]]
+    repo_cards: list[dict[str, Any]]
+    evidence_items: list[dict[str, Any]]
+    ingested_repos: list[str]
+    code_insights: list[dict[str, Any]]

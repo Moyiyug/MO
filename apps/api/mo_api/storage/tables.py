@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -39,4 +39,40 @@ class PlanTable(SQLModel, table=True):
     thread_id: str
     plan_data: dict = Field(default_factory=dict, sa_column=Column(JSON))
     approved: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class RepoCardTable(SQLModel, table=True):
+    __tablename__ = "repo_cards"
+
+    id: str = Field(primary_key=True)
+    task_id: str = Field(index=True)
+    repo_url: str = Field(index=True)
+    card_data: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class EvidenceTable(SQLModel, table=True):
+    __tablename__ = "evidence_items"
+
+    id: str = Field(primary_key=True)
+    task_id: str = Field(index=True)
+    source_uri: str = Field(index=True)
+    locator: str | None = Field(default=None, index=True)
+    evidence_data: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class NodeEventTable(SQLModel, table=True):
+    __tablename__ = "node_events"
+    __table_args__ = (
+        UniqueConstraint("task_id", "seq", name="uq_node_events_task_seq"),
+    )
+
+    id: str = Field(primary_key=True)
+    task_id: str = Field(index=True)
+    seq: int = Field(index=True)
+    node: str
+    status: str
+    payload: dict = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=_utcnow)

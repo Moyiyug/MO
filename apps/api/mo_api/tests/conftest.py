@@ -18,6 +18,7 @@ from mo_api.main import app
 from mo_api.storage import tables as _tables  # noqa: F401  确保表注册
 from mo_api.storage.db import get_session
 from mo_api.workflows.graph import build_plan_graph
+from mo_api.workflows.execute_graph import build_execute_graph, reset_execute_graph_cache, set_execute_graph
 
 
 @pytest.fixture
@@ -49,8 +50,122 @@ def plan_graph(tmp_path, monkeypatch):
         conn.close()
 
 
+@pytest.fixture
+def execute_graph(tmp_path, monkeypatch):
+    """隔离的 ExecuteMode LangGraph（MemorySaver，支持 ainvoke + async 节点）。"""
+    from langgraph.checkpoint.memory import MemorySaver
+
+    graph = build_execute_graph(MemorySaver())
+    set_execute_graph(graph)
+
+    async def _ensure():
+        return graph
+
+    monkeypatch.setattr(
+        "mo_api.workflows.execute_graph.ensure_execute_graph",
+        _ensure,
+    )
+    monkeypatch.setattr(
+        "mo_api.services.execution_service.ensure_execute_graph",
+        _ensure,
+    )
+    try:
+        yield graph
+    finally:
+        reset_execute_graph_cache()
+
+
+@pytest.fixture(autouse=True)
+def execute_graph_patch(execute_graph):
+    """所有测试使用隔离 ExecuteGraph。"""
+    yield execute_graph
+
+
+@pytest.fixture(autouse=True)
+def mock_execute_dependencies(monkeypatch, request, tmp_path):
+    """Mock 仓库摄取与模型调用，避免真实联网/扣费。"""
+    module = request.node.module.__name__
+    if module.endswith("test_repo_ingest_adapter") or module.endswith(
+        "test_model_gateway"
+    ):
+        yield
+        return
+
+    from mo_api.models.repo import RepoDigest
+
+    class _FakeProfile:
+        id = "fake"
+
+    class _FakeGateway:
+        def select(self, **kwargs):
+            return _FakeProfile()
+
+        async def complete(self, profile, messages, **kwargs):
+            if "core_modules" in messages[0]["content"]:
+                return '{"core_modules":["main.py"], "execution_path":"main -> run"}'
+            return '{"project_type":"library","entrypoints":["main.py"],"risks":[]}'
+
+    async def fake_ingest(self, repo_url: str, *, token: str | None = None):
+        return RepoDigest(
+            summary="summary",
+            tree="README.md",
+            content={
+                "README.md": "# demo",
+                "requirements.txt": "requests>=2.0",
+                "LICENSE": "MIT",
+            },
+            source_uri=repo_url,
+        )
+
+    chroma_dir = str(tmp_path / "chroma")
+    settings_stub = type(
+        "S",
+        (),
+        {
+            "chroma_index_dir": chroma_dir,
+            "repo_ingest_max_bytes": 50_000_000,
+            "repo_ingest_exclude_patterns": ".git,.env",
+        },
+    )()
+
+    monkeypatch.setattr(
+        "mo_api.adapters.repo_ingest.gitingest_adapter.GitingestAdapter.ingest",
+        fake_ingest,
+    )
+    monkeypatch.setattr(
+        "mo_api.services.execution_service.get_model_gateway",
+        lambda: _FakeGateway(),
+    )
+    monkeypatch.setattr(
+        "mo_api.storage.vector_store.get_settings",
+        lambda: settings_stub,
+    )
+    monkeypatch.setattr(
+        "mo_api.services.execution_service.get_settings",
+        lambda: settings_stub,
+    )
+    yield
+
+
+@pytest.fixture(autouse=True)
+def patch_get_engine(engine, monkeypatch):
+    from mo_api.services.event_bus import reset_event_bus_cache
+    from mo_api.services.execution_service import reset_execution_service_cache
+
+    monkeypatch.setattr("mo_api.storage.db.get_engine", lambda: engine)
+    monkeypatch.setattr("mo_api.services.event_bus.get_engine", lambda: engine)
+    monkeypatch.setattr("mo_api.services.execution_service.get_engine", lambda: engine)
+    reset_event_bus_cache()
+    reset_execution_service_cache()
+    reset_execute_graph_cache()
+    yield
+    reset_event_bus_cache()
+    reset_execution_service_cache()
+    reset_execute_graph_cache()
+
+
 @pytest_asyncio.fixture
-async def client(engine, plan_graph):
+async def client(engine, plan_graph, execute_graph):
     def _override_get_session():
         with Session(engine) as session:
             yield session

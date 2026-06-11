@@ -24,6 +24,8 @@ litellm
 
 # 工具
 python-dotenv
+gitingest
+aiosqlite
 
 # 测试
 pytest

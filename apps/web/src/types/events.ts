@@ -1,7 +1,9 @@
 import type { NodeStatus } from './enums'
 
-/** PRD F-010 — M4 SSE 事件契约（本期预留类型） */
+/** PRD F-010 — SSE 节点事件契约 */
 export interface NodeEvent {
+  task_id: string
+  seq: number
   node: string
   status: NodeStatus
   input_summary?: string | null
@@ -10,4 +12,16 @@ export interface NodeEvent {
   logs?: string[]
   error_message?: string | null
   next_action?: string | null
+  created_at?: string
+}
+
+export interface ExecuteResponse {
+  task_id: string
+  status: string
+}
+
+export interface StepApproveResponse {
+  task_id: string
+  step_id: string
+  status: string
 }

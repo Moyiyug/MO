@@ -79,6 +79,10 @@ export function PlanReviewPage() {
   const needsApproval = task?.status === 'WAITING_USER_APPROVAL'
   const isApproved =
     task?.status === 'PLAN_APPROVED' || task?.status === 'EXECUTING'
+  const canReplan =
+    task?.status === 'WAITING_USER_APPROVAL' ||
+    task?.status === 'PLAN_APPROVED' ||
+    task?.status === 'EXECUTING'
 
   const missingClarifications = plan
     ? unansweredRequired(plan.clarifying_questions, clarificationAnswers)
@@ -131,6 +135,10 @@ export function PlanReviewPage() {
 
   const handleReplan = async () => {
     if (!taskId) return
+    if (!canReplan) {
+      toast.error('当前状态不支持重规划，请先完成澄清或生成可审批计划')
+      return
+    }
     try {
       await replan.mutateAsync({
         taskId,
@@ -227,7 +235,7 @@ export function PlanReviewPage() {
             <Button
               variant="outline"
               onClick={() => setConfirmReplan(true)}
-              disabled={replan.isPending}
+              disabled={replan.isPending || !canReplan}
             >
               重规划
             </Button>
@@ -460,8 +468,8 @@ export function PlanReviewPage() {
               <DialogHeader>
                 <DialogTitle>确认重规划？</DialogTitle>
                 <DialogDescription>
-                  将基于当前上下文重新生成计划（F-003）。
-                </DialogDescription>
+                将基于当前上下文重新生成计划（F-003）。仅在等待批准、计划已批准或执行中状态可用。
+              </DialogDescription>
               </DialogHeader>
               <Input
                 placeholder="重规划原因（可选）"
@@ -475,7 +483,10 @@ export function PlanReviewPage() {
                 >
                   取消
                 </Button>
-                <Button onClick={handleReplan} disabled={replan.isPending}>
+                <Button
+                  onClick={handleReplan}
+                  disabled={replan.isPending || !canReplan}
+                >
                   确认重规划
                 </Button>
               </DialogFooter>

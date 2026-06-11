@@ -13,8 +13,16 @@ export type StepNodeData = {
 const H_GAP = 280
 const V_GAP = 120
 
-/** 按 depends_on 拓扑分层布局 */
-export function buildStepGraph(steps: PlanStep[]): {
+export function stepStatusToDisplayStatus(step: PlanStep): NodeStatus {
+  if (step.status === 'skipped') return 'skipped'
+  return 'pending'
+}
+
+/** 按 depends_on 拓扑分层布局；statusMap 来自 SSE 事件 */
+export function buildStepGraph(
+  steps: PlanStep[],
+  statusMap: Record<string, NodeStatus> = {},
+): {
   nodes: Node<StepNodeData>[]
   edges: Edge[]
 } {
@@ -58,7 +66,8 @@ export function buildStepGraph(steps: PlanStep[]): {
         position: { x: d * H_GAP, y: i * V_GAP },
         data: {
           step,
-          displayStatus: 'pending',
+          displayStatus:
+            statusMap[step.id] ?? stepStatusToDisplayStatus(step),
           label: step.title,
         },
       })
@@ -69,11 +78,12 @@ export function buildStepGraph(steps: PlanStep[]): {
   for (const step of steps) {
     for (const dep of step.depends_on) {
       if (byId.has(dep)) {
+        const targetStatus = statusMap[step.id]
         edges.push({
           id: `${dep}->${step.id}`,
           source: dep,
           target: step.id,
-          animated: false,
+          animated: targetStatus === 'running',
         })
       }
     }

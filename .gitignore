@@ -33,8 +33,10 @@ Thumbs.db
 .idea/
 .vscode/
 
-# 项目上下文文档与 AGENTS.md
+# 项目上下文文档与智能体配置（Cursor / Claude Code 本地镜像，不入库）
 docs/
 AGENTS.md
-
+CLAUDE.md
 /.cursor
+/.claude
+.mcp.json

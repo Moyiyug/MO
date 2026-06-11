@@ -24,10 +24,21 @@ class Settings(BaseSettings):
     # 存储
     database_url: str = "sqlite:///./runtime/mo.db"
     checkpoint_db_path: str = "./runtime/mo_checkpoints.db"
+    execute_checkpoint_db_path: str = "./runtime/mo_execute_checkpoints.db"
+    chroma_index_dir: str = "./runtime/indexes"
     runtime_dir: str = "./runtime"
+
+    # RepoIngest（gitingest）
+    repo_ingest_max_bytes: int = 50_000_000
+    repo_ingest_exclude_patterns: str = (
+        ".git,.env,node_modules,venv,__pycache__,*.pyc,*.bin,*.png,*.jpg"
+    )
+    repo_ingest_include_patterns: str = ""
 
     # 模型 profile 表路径（M5 ModelGateway 使用，此处仅声明）
     model_profiles_path: str = "./apps/api/model_profiles.json"
+    model_call_timeout_seconds: int = 30
+    model_call_max_retries: int = 2
 
     # 权限默认值（保守）
     default_allow_web_search: bool = False
