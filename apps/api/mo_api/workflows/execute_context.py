@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from ..adapters.model_gateway.gateway import ModelGateway
+from ..adapters.paper_research.base import PaperResearchAdapter, WebResearchAdapter
 from ..adapters.repo_ingest.base import RepoIngestAdapter
 from ..models.enums import NodeStatus
 from ..models.events import NodeEvent
@@ -23,6 +24,8 @@ class ExecuteContext:
     event_bus: EventBus
     evidence_service: EvidenceService
     repo_adapter: RepoIngestAdapter
+    paper_adapter: PaperResearchAdapter
+    web_adapter: WebResearchAdapter
     model_gateway: ModelGateway
     vector_store_factory: Callable[[str], TaskVectorStore]
 

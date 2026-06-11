@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from functools import lru_cache
 from typing import Any
+
+logger = logging.getLogger("mo_api.execution")
 
 from langgraph.types import Command
 from langgraph.errors import GraphInterrupt
 from sqlmodel import Session
 
 from ..adapters.model_gateway.gateway import get_model_gateway
+from ..adapters.paper_research import GPTResearcherAdapter, PaperQAAdapter
 from ..adapters.repo_ingest import GitingestAdapter
 from ..config import get_settings
 from ..models.enums import NodeStatus, TaskStatus
@@ -99,6 +103,8 @@ class ExecutionService:
             event_bus=self.event_bus,
             evidence_service=EvidenceService(session),
             repo_adapter=GitingestAdapter(),
+            paper_adapter=PaperQAAdapter(model_gateway=get_model_gateway()),
+            web_adapter=GPTResearcherAdapter(),
             model_gateway=get_model_gateway(),
             vector_store_factory=_vector_factory,
         )
@@ -115,11 +121,15 @@ class ExecutionService:
             "repo_urls": list(task.repo_urls),
             "paper_urls": list(task.paper_urls),
             "output_language": task.output_language.value,
+            "template": task.template,
             "permissions": permissions,
             "repo_cards": [],
             "evidence_items": [],
             "ingested_repos": [],
             "code_insights": [],
+            "comparison": None,
+            "paper_materials": [],
+            "reproducibility": None,
             "errors": [],
         }
 
@@ -167,8 +177,7 @@ class ExecutionService:
         with Session(get_engine()) as session:
             task_repo = TaskRepository(session)
             task = task_repo.get(task_id)
-            if task and task.status is TaskStatus.EXECUTING:
-                ensure_transition(task.status, TaskStatus.FAILED)
+            if task and task.status is not TaskStatus.FAILED:
                 task_repo.update_status(task_id, TaskStatus.FAILED)
 
     async def _complete_task(self, task_id: str) -> None:
@@ -198,10 +207,8 @@ class ExecutionService:
                 service = ReportService(session)
                 # 仅预热缓存，不推进状态机（GET /report 触发时才推进）
                 await service.generate_async(task_id, advance_status=False)
-        except Exception:
-            # 预生成失败不应影响执行流——用户首次 GET /report
-            # 时会自动触发生成（fallback）
-            pass
+        except Exception as exc:
+            logger.warning("report pregenerate failed for task %s: %s", task_id, exc)
 
     async def _stream_graph(
         self,
@@ -348,6 +355,9 @@ class ExecutionService:
                 else:
                     state = None
                 await self._stream_graph(task_id, graph, state, config)
+        except Exception as exc:
+            logger.exception("_run failed for task %s", task_id)
+            await self._fail_task(task_id, "execute_graph", str(exc)[:500])
         finally:
             clear_context(task_id)
             self._running.discard(task_id)
@@ -367,6 +377,9 @@ class ExecutionService:
                     Command(resume={"approved": True}),
                     config,
                 )
+        except Exception as exc:
+            logger.exception("_resume failed for task %s", task_id)
+            await self._fail_task(task_id, "execute_graph", str(exc)[:500])
         finally:
             clear_context(task_id)
             self._running.discard(task_id)

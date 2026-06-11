@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 const NAV = [
   { to: 'plan', label: '计划审阅' },
   { to: 'workflow', label: '工作流' },
+  { to: 'comparison', label: '对比' },
   { to: 'report', label: '报告' },
 ] as const
 

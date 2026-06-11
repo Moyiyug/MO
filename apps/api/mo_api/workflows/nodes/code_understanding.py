@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
+
+logger = logging.getLogger("mo_api.code_understanding")
 import uuid
 from datetime import datetime, timezone
 
@@ -34,7 +37,7 @@ def _parse_insights(raw: str) -> dict:
         if isinstance(data, dict):
             return data
     except json.JSONDecodeError:
-        pass
+        logger.debug("JSON parse failed for LLM output: %s", text[:100])
     return {
         "core_modules": re.findall(r'"core_modules"\s*:\s*\[(.*?)\]', text, re.DOTALL),
         "execution_path": "",
@@ -96,6 +99,14 @@ async def code_understanding(state: MOState) -> MOState:
     )
     primary_repo = ingested[0]
 
+    if primary_repo == "unknown":
+        await publish_node_event(
+            ctx,
+            NODE_ID,
+            NodeStatus.RUNNING,
+            logs=["code understanding: no ingested repos found, attribution may be incomplete"],
+        )
+
     for module in modules[:10]:
         item = EvidenceItem(
             id=uuid.uuid4().hex,
@@ -115,6 +126,7 @@ async def code_understanding(state: MOState) -> MOState:
                 "module": module,
                 "evidence_id": eid,
                 "label": ClaimLabel.INFERENCE.value,
+                "repo_url": primary_repo,
             }
         )
 
@@ -136,6 +148,7 @@ async def code_understanding(state: MOState) -> MOState:
             "path": execution_path,
             "evidence_id": path_eid,
             "label": ClaimLabel.INFERENCE.value,
+            "repo_url": primary_repo,
         }
     )
 

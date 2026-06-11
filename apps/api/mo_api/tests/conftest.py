@@ -87,7 +87,7 @@ def mock_execute_dependencies(monkeypatch, request, tmp_path):
     module = request.node.module.__name__
     if module.endswith("test_repo_ingest_adapter") or module.endswith(
         "test_model_gateway"
-    ):
+    ) or module.endswith("test_paperqa_adapter"):
         yield
         return
 
@@ -108,6 +108,18 @@ def mock_execute_dependencies(monkeypatch, request, tmp_path):
                 return "已完成 repo_ingest 与 code_understanding 节点执行。"
             if "技术路线" in content or "technical route" in content.lower():
                 return "技术路线从 main.py 入口经核心模块执行。"
+            if "Score repo on dimension" in content:
+                return '{"score": 0.75, "rationale": "demo comparison score"}'
+            if "Classify this research material" in content:
+                return (
+                    '{"material_type": "official_repo_paper", '
+                    '"relationship_clear": true}'
+                )
+            if "Score reproducibility dimension" in content:
+                return (
+                    '{"score": 0.72, "reason": "demo repro score", '
+                    '"missing_info": []}'
+                )
             return '{"project_type":"library","entrypoints":["main.py"],"risks":[]}'
 
     async def fake_ingest(self, repo_url: str, *, token: str | None = None):
@@ -130,13 +142,45 @@ def mock_execute_dependencies(monkeypatch, request, tmp_path):
             "chroma_index_dir": chroma_dir,
             "repo_ingest_max_bytes": 50_000_000,
             "repo_ingest_exclude_patterns": ".git,.env",
+            "paper_index_dir": str(tmp_path / "paper_idx"),
+            "web_search_retriever": "",
         },
     )()
+
+    from mo_api.adapters.paper_research import GPTResearcherAdapter, PaperQAAdapter
+    from mo_api.adapters.paper_research.base import (
+        PaperAnswer,
+        PaperContext,
+        WebResearchResult,
+        WebSource,
+    )
+
+    async def fake_query_papers(self, doc_paths, question, *, task_id):
+        return PaperAnswer(
+            answer="demo paper answer",
+            contexts=[
+                PaperContext(
+                    text="demo paper context",
+                    source_name="paper.pdf",
+                    locator="p1",
+                )
+            ],
+        )
+
+    async def fake_web_research(self, query, *, report_type="research_report"):
+        return WebResearchResult(
+            report="demo web report",
+            sources=[
+                WebSource(url="https://example.com/ref", summary="background ref")
+            ],
+        )
 
     monkeypatch.setattr(
         "mo_api.adapters.repo_ingest.gitingest_adapter.GitingestAdapter.ingest",
         fake_ingest,
     )
+    monkeypatch.setattr(PaperQAAdapter, "query_papers", fake_query_papers)
+    monkeypatch.setattr(GPTResearcherAdapter, "research", fake_web_research)
     monkeypatch.setattr(
         "mo_api.services.execution_service.get_model_gateway",
         lambda: _FakeGateway(),

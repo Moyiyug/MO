@@ -109,3 +109,28 @@ CODE_INSIGHT_LOCATOR_EXECUTION_PATH = "code:execution_path"
 CODE_INSIGHT_LOCATOR_CORE_MODULE_PREFIX = "code:core_module:"
 CODE_INSIGHT_LOCATOR_REPO_SUMMARY = "code:repo_summary"
 CODE_INSIGHT_PREFIX_CORE_MODULE = "Core module:"
+
+
+class MaterialType(str, Enum):
+    """论文/资料分类（PRD F-006）。"""
+
+    OFFICIAL_REPO_PAPER = "official_repo_paper"
+    OFFICIAL_DOC = "official_doc"
+    BACKGROUND_REFERENCE = "background_reference"
+    MODEL_SUGGESTED_REFERENCE = "model_suggested_reference"
+    UNVERIFIED_REFERENCE = "unverified_reference"
+
+
+# PRD F-007 复现评估维度
+REPRO_DIMENSIONS: list[str] = [
+    "install_clarity",
+    "dependency_risk",
+    "examples_availability",
+    "tests_availability",
+    "data_requirement_clarity",
+    "hardware_requirement_clarity",
+    "external_service_dependency",
+    "documentation_quality",
+]
+
+STATIC_REPRO_ASSESSMENT_LABEL = "static_reproducibility_assessment"

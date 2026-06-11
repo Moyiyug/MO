@@ -64,22 +64,33 @@ async def repo_ingest(state: MOState) -> MOState:
                 ingested_repos.append(repo_url)
                 continue
 
-        digest = await ctx.repo_adapter.ingest(repo_url)
-        await vector_store.add_chunks(digest.content, source_uri=digest.source_uri)
+        try:
+            digest = await ctx.repo_adapter.ingest(repo_url)
+            await vector_store.add_chunks(digest.content, source_uri=digest.source_uri)
 
-        card = await build_repo_card(
-            task_id,
-            digest,
-            ctx.model_gateway,
-            ctx.evidence_service,
-        )
+            card = await build_repo_card(
+                task_id,
+                digest,
+                ctx.model_gateway,
+                ctx.evidence_service,
+            )
 
-        with Session(db.get_engine()) as session:
-            RepoCardRepository(session).create(card)
+            with Session(db.get_engine()) as session:
+                RepoCardRepository(session).create(card)
 
-        ingested_repos.append(repo_url)
-        repo_cards.append(card.model_dump(mode="json"))
-        all_evidence_ids.extend(card.evidence_ids)
+            ingested_repos.append(repo_url)
+            repo_cards.append(card.model_dump(mode="json"))
+            all_evidence_ids.extend(card.evidence_ids)
+        except Exception as exc:
+            errors.append(
+                {"node": NODE_ID, "repo": repo_url, "msg": str(exc)[:200]}
+            )
+            await publish_node_event(
+                ctx,
+                NODE_ID,
+                NodeStatus.RUNNING,
+                logs=[f"repo ingest failed for {repo_url}: {exc}"],
+            )
 
     # 从 DB 重建 evidence_items（避免 state 累积重复）
     evidence_items = [

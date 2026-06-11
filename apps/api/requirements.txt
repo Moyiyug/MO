@@ -20,12 +20,16 @@ chromadb
 
 # 模型路由 / HTTP
 httpx
-litellm
+litellm>=1.88
 
 # 工具
 python-dotenv
 gitingest
 aiosqlite
+
+# M9 PaperResearch（隔离接入，懒加载；安装需审批 R-004）
+paper-qa
+gpt-researcher
 
 # 测试
 pytest

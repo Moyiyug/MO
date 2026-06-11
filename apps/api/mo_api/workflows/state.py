@@ -21,3 +21,6 @@ class MOState(TypedDict, total=False):
     evidence_items: list[dict[str, Any]]
     ingested_repos: list[str]
     code_insights: list[dict[str, Any]]
+    comparison: dict[str, Any] | None
+    paper_materials: list[dict[str, Any]]
+    reproducibility: dict[str, Any] | None

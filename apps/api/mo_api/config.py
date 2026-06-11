@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     checkpoint_db_path: str = "./runtime/mo_checkpoints.db"
     execute_checkpoint_db_path: str = "./runtime/mo_execute_checkpoints.db"
     chroma_index_dir: str = "./runtime/indexes"
+    paper_index_dir: str = "./runtime/indexes/paper"
+    web_search_retriever: str = ""
     runtime_dir: str = "./runtime"
 
     # RepoIngest（gitingest）

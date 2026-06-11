@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .adapters.model_gateway.gateway import ModelCallError, ModelConfigError
-from .routers import events, models, plans, report, repos_evidence, tasks
+from .routers import comparison, events, models, plans, report, repos_evidence, research, tasks
 from .services.event_bus import get_event_bus
 from .services.execution_service import get_execution_service
 from .storage.db import init_db
@@ -89,6 +89,8 @@ def create_app() -> FastAPI:
     app.include_router(models.router)
     app.include_router(repos_evidence.router)
     app.include_router(report.router)
+    app.include_router(comparison.router)
+    app.include_router(research.router)
     return app
 
 

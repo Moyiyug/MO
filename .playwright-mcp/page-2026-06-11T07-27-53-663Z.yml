@@ -1,0 +1,44 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: 创建调研任务
+      - generic [ref=e7]: 填写研究目标与仓库信息。提交后将进入 PlanMode 生成计划（P-001）。
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - text: 研究目标
+        - textbox "研究目标" [ref=e11]:
+          - /placeholder: 例如：对比两个 RL 框架的可复现性与工程成熟度
+      - generic [ref=e12]:
+        - text: 仓库 URL（1–5 个，每行一个）
+        - textbox "仓库 URL（1–5 个，每行一个）" [ref=e13]:
+          - /placeholder: https://github.com/owner/repo
+      - generic [ref=e14]:
+        - text: 论文/文档 URL（可选）
+        - textbox "论文/文档 URL（可选）" [ref=e15]:
+          - /placeholder: 每行一个 URL
+      - generic [ref=e16]:
+        - text: 报告模板（可选）
+        - textbox "报告模板（可选）" [ref=e17]:
+          - /placeholder: default
+      - generic [ref=e18]:
+        - text: 输出语言
+        - combobox "输出语言" [ref=e19]:
+          - option "中文" [selected]
+          - option "English"
+      - group "权限开关" [ref=e20]:
+        - generic [ref=e21]: 权限开关
+        - paragraph [ref=e22]: 默认保守：联网调研、冒烟测试、依赖安装均为关闭。
+        - generic [ref=e23]:
+          - checkbox "允许联网调研" [ref=e24]
+          - text: 允许联网调研
+        - generic [ref=e25]:
+          - checkbox "允许克隆仓库" [checked] [ref=e26]
+          - text: 允许克隆仓库
+        - generic [ref=e27]:
+          - checkbox "允许冒烟测试" [ref=e28]
+          - text: 允许冒烟测试
+        - generic [ref=e29]:
+          - checkbox "允许安装依赖" [ref=e30]
+          - text: 允许安装依赖
+      - button "创建任务并生成计划" [ref=e31]
+  - region "Notifications alt+T"

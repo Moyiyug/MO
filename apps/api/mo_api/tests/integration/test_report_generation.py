@@ -82,7 +82,16 @@ async def test_report_generation_and_export(client, created_task_id, engine) -> 
 
     assert len(report["pending_warnings"]) >= 1
     pending_sections = [s for s in report["sections"] if s["is_pending"]]
-    assert len(pending_sections) >= 3
+    # M9 后 reproducibility 段已接入真实数据，pending 段减少
+    assert len(pending_sections) >= 2
+
+    repro_section = next(s for s in report["sections"] if s["key"] == "reproducibility")
+    assert repro_section["is_pending"] is False
+    assert "static_reproducibility_assessment" in repro_section["markdown"]
+
+    repro_resp = await client.get(f"/api/tasks/{created_task_id}/reproducibility")
+    assert repro_resp.status_code == 200
+    assert len(repro_resp.json()["scores"]) >= 1
 
     task_after_gen = await client.get(f"/api/tasks/{created_task_id}")
     assert task_after_gen.json()["status"] == "REVIEW_REQUIRED"

@@ -15,11 +15,15 @@ from ..models.enums import OutputLanguage, TaskStatus
 from ..models.evidence import EvidenceItem
 from ..models.events import NodeEvent
 from ..models.plan import Plan
+from ..models.comparison import ComparisonMatrix
+from ..models.reproducibility import ReproducibilityReport
 from ..models.report import Report
 from ..models.repo import RepoCard
 from ..models.task import TaskPermissions, TaskResponse
 from .tables import (
+    ComparisonTable,
     EvidenceTable,
+    ReproducibilityTable,
     NodeEventTable,
     PlanTable,
     RepoCardTable,
@@ -341,3 +345,97 @@ class ReportRepository:
             return _row_to_report(row)
         self.session.refresh(existing)
         return _row_to_report(existing)
+
+
+def _row_to_comparison(row: ComparisonTable) -> ComparisonMatrix:
+    data = dict(row.comparison_data or {})
+    data.setdefault("id", row.id)
+    data.setdefault("task_id", row.task_id)
+    data.setdefault("generated_at", row.generated_at)
+    return ComparisonMatrix.model_validate(data)
+
+
+class ComparisonRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def get_by_task(self, task_id: str) -> ComparisonMatrix | None:
+        row = self.session.exec(
+            select(ComparisonTable).where(ComparisonTable.task_id == task_id)
+        ).first()
+        return _row_to_comparison(row) if row else None
+
+    def delete_by_task(self, task_id: str) -> None:
+        row = self.session.exec(
+            select(ComparisonTable).where(ComparisonTable.task_id == task_id)
+        ).first()
+        if row is not None:
+            self.session.delete(row)
+            self.session.commit()
+
+    def upsert_by_task(self, matrix: ComparisonMatrix) -> ComparisonMatrix:
+        existing = self.session.exec(
+            select(ComparisonTable).where(ComparisonTable.task_id == matrix.task_id)
+        ).first()
+        if existing is None:
+            row = ComparisonTable(
+                id=matrix.id,
+                task_id=matrix.task_id,
+                comparison_data=matrix.model_dump(mode="json"),
+                generated_at=matrix.generated_at,
+            )
+            self.session.add(row)
+        else:
+            existing.comparison_data = matrix.model_dump(mode="json")
+            existing.generated_at = matrix.generated_at
+            self.session.add(existing)
+        self.session.commit()
+        if existing is None:
+            self.session.refresh(row)
+            return _row_to_comparison(row)
+        self.session.refresh(existing)
+        return _row_to_comparison(existing)
+
+
+def _row_to_reproducibility(row: ReproducibilityTable) -> ReproducibilityReport:
+    data = dict(row.report_data or {})
+    data.setdefault("id", row.id)
+    data.setdefault("task_id", row.task_id)
+    data.setdefault("generated_at", row.generated_at)
+    return ReproducibilityReport.model_validate(data)
+
+
+class ReproducibilityRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def get_by_task(self, task_id: str) -> ReproducibilityReport | None:
+        row = self.session.exec(
+            select(ReproducibilityTable).where(ReproducibilityTable.task_id == task_id)
+        ).first()
+        return _row_to_reproducibility(row) if row else None
+
+    def upsert_by_task(self, report: ReproducibilityReport) -> ReproducibilityReport:
+        existing = self.session.exec(
+            select(ReproducibilityTable).where(
+                ReproducibilityTable.task_id == report.task_id
+            )
+        ).first()
+        if existing is None:
+            row = ReproducibilityTable(
+                id=report.id,
+                task_id=report.task_id,
+                report_data=report.model_dump(mode="json"),
+                generated_at=report.generated_at,
+            )
+            self.session.add(row)
+        else:
+            existing.report_data = report.model_dump(mode="json")
+            existing.generated_at = report.generated_at
+            self.session.add(existing)
+        self.session.commit()
+        if existing is None:
+            self.session.refresh(row)
+            return _row_to_reproducibility(row)
+        self.session.refresh(existing)
+        return _row_to_reproducibility(existing)

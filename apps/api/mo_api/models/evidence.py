@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
-from .enums import ClaimLabel, EvidenceStrength, SourceType
+from .enums import ClaimLabel, EvidenceStrength, MaterialType, SourceType
 
 
 class EvidenceItem(BaseModel):
@@ -19,6 +19,7 @@ class EvidenceItem(BaseModel):
     locator: str | None = None
     quote_or_summary: str
     strength: EvidenceStrength = EvidenceStrength.MEDIUM
+    material_type: MaterialType | None = None
     used_by: list[str] = Field(default_factory=list)
     created_at: datetime
 

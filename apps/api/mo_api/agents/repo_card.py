@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlparse
+
+logger = logging.getLogger("mo_api.repo_card")
 
 from ..adapters.model_gateway.gateway import ModelGateway
 from ..models.enums import ClaimLabel, EvidenceStrength, SourceType
@@ -148,7 +151,7 @@ def _parse_jsonish(text: str) -> dict:
         if isinstance(data, dict):
             return data
     except json.JSONDecodeError:
-        pass
+        logger.debug("JSON parse failed for LLM output: %s", text[:100])
     result: dict = {}
     for key in ("project_type", "entrypoints", "risks"):
         if key == "entrypoints" or key == "risks":
@@ -301,7 +304,8 @@ async def build_repo_card(
         field_labels["project_type"] = ClaimLabel.INFERENCE.value
         field_labels["entrypoints"] = ClaimLabel.INFERENCE.value
         field_labels["risks"] = ClaimLabel.INFERENCE.value
-    except Exception:
+    except Exception as exc:
+        logger.warning("LLM inference failed for repo_card: %s", exc)
         field_labels["project_type"] = ClaimLabel.PENDING.value
         field_labels["entrypoints"] = ClaimLabel.PENDING.value
         field_labels["risks"] = ClaimLabel.PENDING.value

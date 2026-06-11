@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+
+logger = logging.getLogger("mo_api.report")
 
 from sqlmodel import Session
 
@@ -14,8 +17,10 @@ from ..models.enums import (
     CODE_INSIGHT_LOCATOR_EXECUTION_PATH,
     CODE_INSIGHT_LOCATOR_REPO_SUMMARY,
     CODE_INSIGHT_PREFIX_CORE_MODULE,
+    STATIC_REPRO_ASSESSMENT_LABEL,
     ClaimLabel,
     EvidenceStrength,
+    MaterialType,
     NodeStatus,
     SourceType,
     TaskStatus,
@@ -26,9 +31,11 @@ from ..models.plan import Plan
 from ..models.report import REPORT_SECTION_KEYS, REPORT_SECTION_TITLES, Report, ReportSection
 from ..models.task import TaskResponse
 from ..storage.repositories import (
+    ComparisonRepository,
     EventRepository,
     EvidenceRepository,
     PlanRepository,
+    ReproducibilityRepository,
     ReportRepository,
     RepoCardRepository,
     TaskRepository,
@@ -57,6 +64,8 @@ class ReportService:
         self.repo_card_repo = RepoCardRepository(session)
         self.evidence_repo = EvidenceRepository(session)
         self.report_repo = ReportRepository(session)
+        self.comparison_repo = ComparisonRepository(session)
+        self.repro_repo = ReproducibilityRepository(session)
 
     def _ensure_gateway(self) -> ModelGateway:
         if self._gateway is None:
@@ -477,7 +486,8 @@ class ReportService:
                 [{"role": "user", "content": prompt}],
                 max_tokens=512,
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("execution_summary LLM failed: %s", exc)
             narrative = "（执行摘要生成失败——将在下方展示原始节点事件）"
         claims = [
             self._make_claim(
@@ -558,11 +568,15 @@ class ReportService:
         evidence_items: list[EvidenceItem],
     ) -> tuple[ReportSection, list[str]]:
         lang = task.output_language.value
-        papers = list(task.paper_urls)
-        paper_evidence = [e for e in evidence_items if e.source_type is SourceType.PAPER]
-        if not papers and not paper_evidence:
+        research_evidence = [
+            e
+            for e in evidence_items
+            if e.source_type in (SourceType.PAPER, SourceType.WEB)
+            or e.material_type is not None
+        ]
+        if not research_evidence:
             claim = self._make_claim(
-                "论文/网络调研尚未执行（M9）",
+                "论文/网络调研尚未执行",
                 ClaimLabel.PENDING,
                 [],
             )
@@ -574,22 +588,82 @@ class ReportService:
                     claims=[claim],
                     is_pending=True,
                 ),
-                ["论文/上下文补充尚未完成（依赖 M9 paper_research）"],
+                ["论文/上下文补充尚未完成"],
             )
-        lines = [f"- {url}" for url in papers]
-        claims = [
-            self._make_claim(f"论文链接：{url}", ClaimLabel.PENDING, [])
-            for url in papers
-        ]
+
+        groups: dict[str, list[EvidenceItem]] = {
+            "official": [],
+            "background": [],
+            "pending": [],
+        }
+        for ev in research_evidence:
+            mt = ev.material_type
+            if mt in (
+                MaterialType.OFFICIAL_REPO_PAPER,
+                MaterialType.OFFICIAL_DOC,
+            ):
+                groups["official"].append(ev)
+            elif mt is MaterialType.UNVERIFIED_REFERENCE or mt is None:
+                groups["pending"].append(ev)
+            else:
+                groups["background"].append(ev)
+
+        lines: list[str] = []
+        claims: list[ReportClaim] = []
+        warnings: list[str] = []
+
+        if groups["official"]:
+            lines.append("**官方论文/文档：**")
+            for ev in groups["official"]:
+                label = (
+                    ClaimLabel.FACT
+                    if ev.strength is EvidenceStrength.STRONG
+                    else ClaimLabel.INFERENCE
+                )
+                c = self._make_claim(
+                    ev.quote_or_summary[:200],
+                    label,
+                    [ev.id],
+                )
+                claims.append(c)
+                lines.append(
+                    f"- [{ev.material_type.value if ev.material_type else 'paper'}] "
+                    f"{ev.source_uri}: {ev.quote_or_summary[:120]}"
+                )
+                lines.append(self._format_claim_line(c))
+
+        if groups["background"]:
+            lines.append("\n**背景引用：**")
+            for ev in groups["background"]:
+                c = self._make_claim(
+                    ev.quote_or_summary[:200],
+                    ClaimLabel.INFERENCE,
+                    [ev.id],
+                )
+                claims.append(c)
+                lines.append(self._format_claim_line(c))
+
+        if groups["pending"]:
+            lines.append("\n**待核实资料：**")
+            warnings.append(f"有 {len(groups['pending'])} 项资料关系不明或待核实")
+            for ev in groups["pending"]:
+                c = self._make_claim(
+                    ev.quote_or_summary[:200],
+                    ClaimLabel.PENDING,
+                    [],
+                )
+                claims.append(c)
+                lines.append(self._format_claim_line(c))
+
         return (
             ReportSection(
                 key="paper_supplement",
                 title=self._title("paper_supplement", lang),
                 markdown="\n".join(lines),
                 claims=claims,
-                is_pending=True,
+                is_pending=bool(groups["pending"]),
             ),
-            ["论文链接已登记但尚未完成深度调研"],
+            warnings,
         )
 
     async def _section_technical_route(
@@ -647,7 +721,8 @@ class ReportService:
                 [{"role": "user", "content": prompt}],
                 max_tokens=512,
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("technical_route LLM failed: %s", exc)
             narrative = "（技术路线分析生成失败——将在下方展示原始代码洞察）"
         claims = [
             self._make_claim(
@@ -677,20 +752,75 @@ class ReportService:
         evidence_items: list[EvidenceItem],
     ) -> tuple[ReportSection, list[str]]:
         lang = task.output_language.value
-        claim = self._make_claim(
-            "多仓库对比矩阵尚未生成（依赖 M8 comparison）",
-            ClaimLabel.PENDING,
-            [],
+        matrix = self.comparison_repo.get_by_task(task.task_id)
+        if matrix is None:
+            claim = self._make_claim(
+                "多仓库对比矩阵尚未生成",
+                ClaimLabel.PENDING,
+                [],
+            )
+            return (
+                ReportSection(
+                    key="comparison_matrix",
+                    title=self._title("comparison_matrix", lang),
+                    markdown=self._format_claim_line(claim),
+                    claims=[claim],
+                    is_pending=True,
+                ),
+                ["对比矩阵尚未完成"],
+            )
+
+        lines: list[str] = []
+        claims: list[ReportClaim] = []
+
+        lines.append("**排名：**")
+        for i, rank in enumerate(matrix.rankings, 1):
+            lines.append(
+                f"{i}. {rank.repo_name} — 加权总分 **{rank.weighted_total:.2f}**"
+            )
+
+        lines.append("\n**维度得分：**")
+        lines.append("| 仓库 | 维度 | 分数 | 说明 |")
+        lines.append("| --- | --- | --- | --- |")
+        # 用 rankings 中的 repo_name 替代 URL 解析（更可靠）
+        name_by_url = {r.repo_url: r.repo_name for r in matrix.rankings}
+        for ds in matrix.scores:
+            short = name_by_url.get(ds.repo_url, ds.repo_url.rstrip("/").split("/")[-1][:20])
+            lines.append(
+                f"| {short} | {ds.dimension} | {ds.score:.2f} | {ds.rationale[:80]} |"
+            )
+            claims.append(
+                self._make_claim(
+                    f"{ds.repo_url} / {ds.dimension}: {ds.rationale[:120]}",
+                    ds.label,
+                    ds.evidence_ids,
+                )
+            )
+
+        lines.append(f"\n**推荐：** {matrix.recommendation}")
+        rec_claim = self._make_claim(
+            matrix.recommendation,
+            ClaimLabel.INFERENCE if matrix.recommendation_evidence_ids else ClaimLabel.PENDING,
+            matrix.recommendation_evidence_ids,
         )
+        claims.append(rec_claim)
+        lines.append(self._format_claim_line(rec_claim))
+
+        if matrix.limitations:
+            lines.append("\n**局限：**")
+            for lim in matrix.limitations:
+                lim_claim = self._make_claim(lim, ClaimLabel.PENDING, [])
+                claims.append(lim_claim)
+                lines.append(self._format_claim_line(lim_claim))
+
         return (
             ReportSection(
                 key="comparison_matrix",
                 title=self._title("comparison_matrix", lang),
-                markdown=self._format_claim_line(claim),
-                claims=[claim],
-                is_pending=True,
+                markdown="\n".join(lines),
+                claims=claims,
             ),
-            ["对比矩阵尚未完成（依赖 M8）"],
+            [],
         )
 
     def _section_reproducibility(
@@ -703,20 +833,59 @@ class ReportService:
         evidence_items: list[EvidenceItem],
     ) -> tuple[ReportSection, list[str]]:
         lang = task.output_language.value
-        claim = self._make_claim(
-            "复现性评估尚未执行（依赖 M9 repro_eval）",
-            ClaimLabel.PENDING,
-            [],
-        )
+        report = self.repro_repo.get_by_task(task.task_id)
+        if report is None or not report.scores:
+            claim = self._make_claim(
+                "复现性评估尚未执行",
+                ClaimLabel.PENDING,
+                [],
+            )
+            return (
+                ReportSection(
+                    key="reproducibility",
+                    title=self._title("reproducibility", lang),
+                    markdown=self._format_claim_line(claim),
+                    claims=[claim],
+                    is_pending=True,
+                ),
+                ["复现性分析尚未完成"],
+            )
+
+        lines: list[str] = [
+            f"> 评估类型：**{STATIC_REPRO_ASSESSMENT_LABEL}**（无 run log，非实测复现）"
+        ]
+        claims: list[ReportClaim] = []
+
+        for score in report.scores:
+            lines.append(f"\n### {score.repo_name}")
+            lines.append(f"- **综合得分：** {score.overall_score:.2f}")
+            lines.append("- **维度得分：**")
+            for dim, val in score.dimension_scores.items():
+                lines.append(f"  - {dim}: {val:.2f}")
+            if score.missing_info:
+                lines.append("- **缺失信息：**")
+                for m in score.missing_info:
+                    lines.append(f"  - {m}")
+            if score.recommended_next_checks:
+                lines.append("- **建议下一步：**")
+                for n in score.recommended_next_checks:
+                    lines.append(f"  - {n}")
+            summary_claim = self._make_claim(
+                f"{score.repo_name} 静态复现评估综合得分 {score.overall_score:.2f}",
+                ClaimLabel.INFERENCE if score.evidence_ids else ClaimLabel.PENDING,
+                score.evidence_ids,
+            )
+            claims.append(summary_claim)
+            lines.append(self._format_claim_line(summary_claim))
+
         return (
             ReportSection(
                 key="reproducibility",
                 title=self._title("reproducibility", lang),
-                markdown=self._format_claim_line(claim),
-                claims=[claim],
-                is_pending=True,
+                markdown="\n".join(lines),
+                claims=claims,
             ),
-            ["复现性分析尚未完成（依赖 M9）"],
+            [],
         )
 
     def _section_risks(

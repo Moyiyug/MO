@@ -47,8 +47,15 @@ def mock_repo_ingest(monkeypatch):
 @pytest.fixture
 def mock_gateway(monkeypatch):
     async def fake_complete(self, profile, messages, **kwargs):
-        if "core_modules" in messages[0]["content"]:
+        content = messages[0]["content"]
+        if "core_modules" in content:
             return '{"core_modules":["main.py"], "execution_path":"main -> run"}'
+        if "Score repo on dimension" in content:
+            return '{"score": 0.75, "rationale": "demo comparison score"}'
+        if "Classify this research material" in content:
+            return '{"material_type": "background_reference", "relationship_clear": true}'
+        if "Score reproducibility dimension" in content:
+            return '{"score": 0.7, "reason": "demo", "missing_info": []}'
         return '{"project_type":"library","entrypoints":["main.py"],"risks":["low test coverage"]}'
 
     def fake_select(self, **kwargs):
@@ -172,9 +179,13 @@ async def test_graph_direct_invoke(
         "evidence_items": [],
         "ingested_repos": [],
         "code_insights": [],
+        "paper_materials": [],
+        "reproducibility": None,
+        "comparison": None,
         "errors": [],
     }
 
+    from mo_api.adapters.paper_research import GPTResearcherAdapter, PaperQAAdapter
     from mo_api.adapters.repo_ingest import GitingestAdapter
     from mo_api.services.evidence_service import EvidenceService
     from mo_api.services.event_bus import EventBus
@@ -193,8 +204,15 @@ async def test_graph_direct_invoke(
             return _FakeProfile()
 
         async def complete(self, profile, messages, **kwargs):
-            if "core_modules" in messages[0]["content"]:
+            content = messages[0]["content"]
+            if "core_modules" in content:
                 return '{"core_modules":["main.py"], "execution_path":"main -> run"}'
+            if "Score repo on dimension" in content:
+                return '{"score": 0.75, "rationale": "demo"}'
+            if "Classify this research material" in content:
+                return '{"material_type": "background_reference", "relationship_clear": true}'
+            if "Score reproducibility dimension" in content:
+                return '{"score": 0.7, "reason": "demo", "missing_info": []}'
             return '{"project_type":"library","entrypoints":["main.py"],"risks":[]}'
 
     chroma_dir = str(tmp_path / "chroma")
@@ -206,6 +224,8 @@ async def test_graph_direct_invoke(
                 event_bus=EventBus(),
                 evidence_service=EvidenceService(session),
                 repo_adapter=GitingestAdapter(),
+                paper_adapter=PaperQAAdapter(model_gateway=_FakeGateway()),
+                web_adapter=GPTResearcherAdapter(),
                 model_gateway=_FakeGateway(),
                 vector_store_factory=lambda tid: TaskVectorStore(
                     tid, persist_dir=chroma_dir
