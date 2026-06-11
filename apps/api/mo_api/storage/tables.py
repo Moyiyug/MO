@@ -63,6 +63,15 @@ class EvidenceTable(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_utcnow)
 
 
+class ReportTable(SQLModel, table=True):
+    __tablename__ = "reports"
+
+    id: str = Field(primary_key=True)
+    task_id: str = Field(index=True, unique=True)
+    report_data: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    generated_at: datetime = Field(default_factory=_utcnow)
+
+
 class NodeEventTable(SQLModel, table=True):
     __tablename__ = "node_events"
     __table_args__ = (

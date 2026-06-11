@@ -7,7 +7,16 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from ...models.enums import ClaimLabel, EvidenceStrength, NodeStatus, SourceType
+from ...models.enums import (
+    CODE_INSIGHT_LOCATOR_CORE_MODULE_PREFIX,
+    CODE_INSIGHT_LOCATOR_EXECUTION_PATH,
+    CODE_INSIGHT_LOCATOR_REPO_SUMMARY,
+    CODE_INSIGHT_PREFIX_CORE_MODULE,
+    ClaimLabel,
+    EvidenceStrength,
+    NodeStatus,
+    SourceType,
+)
 from ...models.evidence import EvidenceItem
 from ..execute_context import get_context, publish_node_event
 from ..state import MOState
@@ -93,8 +102,8 @@ async def code_understanding(state: MOState) -> MOState:
             task_id=task_id,
             source_type=SourceType.MODEL_INFERENCE,
             source_uri=primary_repo,
-            locator=module,
-            quote_or_summary=f"Core module: {module}",
+            locator=f"{CODE_INSIGHT_LOCATOR_CORE_MODULE_PREFIX}{module}",
+            quote_or_summary=f"{CODE_INSIGHT_PREFIX_CORE_MODULE} {module}",
             strength=EvidenceStrength.MEDIUM,
             created_at=datetime.now(timezone.utc),
         )
@@ -114,7 +123,7 @@ async def code_understanding(state: MOState) -> MOState:
         task_id=task_id,
         source_type=SourceType.MODEL_INFERENCE,
         source_uri=primary_repo,
-        locator="execution_path",
+        locator=CODE_INSIGHT_LOCATOR_EXECUTION_PATH,
         quote_or_summary=str(execution_path)[:2000],
         strength=EvidenceStrength.MEDIUM,
         created_at=datetime.now(timezone.utc),
@@ -137,7 +146,7 @@ async def code_understanding(state: MOState) -> MOState:
             task_id=task_id,
             source_type=SourceType.MODEL_INFERENCE,
             source_uri=repo_url,
-            locator="code_understanding",
+            locator=CODE_INSIGHT_LOCATOR_REPO_SUMMARY,
             quote_or_summary=(
                 f"Code understanding for {repo_url}: "
                 f"{len(modules)} core modules, execution path: {execution_path}"

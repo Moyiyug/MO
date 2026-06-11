@@ -99,3 +99,13 @@ class PlanStepStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     SKIPPED = "skipped"
+
+
+# ---- code_understanding ↔ report_service 共享常量 ----
+# code_understanding 节点写入 evidence 时使用这些 locator / 前缀；
+# report_service._derive_code_insights 据此匹配。修改时两边必须同步。
+
+CODE_INSIGHT_LOCATOR_EXECUTION_PATH = "code:execution_path"
+CODE_INSIGHT_LOCATOR_CORE_MODULE_PREFIX = "code:core_module:"
+CODE_INSIGHT_LOCATOR_REPO_SUMMARY = "code:repo_summary"
+CODE_INSIGHT_PREFIX_CORE_MODULE = "Core module:"

@@ -101,8 +101,13 @@ def mock_execute_dependencies(monkeypatch, request, tmp_path):
             return _FakeProfile()
 
         async def complete(self, profile, messages, **kwargs):
-            if "core_modules" in messages[0]["content"]:
+            content = messages[0]["content"]
+            if "core_modules" in content:
                 return '{"core_modules":["main.py"], "execution_path":"main -> run"}'
+            if "执行摘要" in content or "execution summary" in content.lower():
+                return "已完成 repo_ingest 与 code_understanding 节点执行。"
+            if "技术路线" in content or "technical route" in content.lower():
+                return "技术路线从 main.py 入口经核心模块执行。"
             return '{"project_type":"library","entrypoints":["main.py"],"risks":[]}'
 
     async def fake_ingest(self, repo_url: str, *, token: str | None = None):
@@ -134,6 +139,10 @@ def mock_execute_dependencies(monkeypatch, request, tmp_path):
     )
     monkeypatch.setattr(
         "mo_api.services.execution_service.get_model_gateway",
+        lambda: _FakeGateway(),
+    )
+    monkeypatch.setattr(
+        "mo_api.services.report_service.get_model_gateway",
         lambda: _FakeGateway(),
     )
     monkeypatch.setattr(

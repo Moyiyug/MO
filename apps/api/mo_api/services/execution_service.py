@@ -178,6 +178,30 @@ class ExecutionService:
             if task and task.status is TaskStatus.EXECUTING:
                 ensure_transition(task.status, TaskStatus.REPORT_DRAFT)
                 task_repo.update_status(task_id, TaskStatus.REPORT_DRAFT)
+        # 后台预生成报告，不阻塞状态转换（FIX-8）
+        asyncio.create_task(self._pregenerate_report(task_id))
+
+    async def _pregenerate_report(self, task_id: str) -> None:
+        """后台预生成报告，使首次 GET /report 缓存命中。"""
+        try:
+            from .report_service import ReportService
+            from ..models.enums import TaskStatus as Ts
+
+            with Session(get_engine()) as session:
+                task = TaskRepository(session).get(task_id)
+                if task is None or task.status not in (
+                    Ts.REPORT_DRAFT,
+                    Ts.REVIEW_REQUIRED,
+                    Ts.DONE,
+                ):
+                    return
+                service = ReportService(session)
+                # 仅预热缓存，不推进状态机（GET /report 触发时才推进）
+                await service.generate_async(task_id, advance_status=False)
+        except Exception:
+            # 预生成失败不应影响执行流——用户首次 GET /report
+            # 时会自动触发生成（fallback）
+            pass
 
     async def _stream_graph(
         self,

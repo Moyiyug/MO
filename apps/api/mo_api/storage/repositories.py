@@ -15,9 +15,17 @@ from ..models.enums import OutputLanguage, TaskStatus
 from ..models.evidence import EvidenceItem
 from ..models.events import NodeEvent
 from ..models.plan import Plan
+from ..models.report import Report
 from ..models.repo import RepoCard
 from ..models.task import TaskPermissions, TaskResponse
-from .tables import EvidenceTable, NodeEventTable, PlanTable, RepoCardTable, TaskTable
+from .tables import (
+    EvidenceTable,
+    NodeEventTable,
+    PlanTable,
+    RepoCardTable,
+    ReportTable,
+    TaskTable,
+)
 
 
 def _to_response(row: TaskTable) -> TaskResponse:
@@ -291,3 +299,45 @@ class EvidenceRepository:
         self.session.commit()
         self.session.refresh(row)
         return _row_to_evidence(row)
+
+
+def _row_to_report(row: ReportTable) -> Report:
+    data = dict(row.report_data or {})
+    data.setdefault("id", row.id)
+    data.setdefault("task_id", row.task_id)
+    data.setdefault("generated_at", row.generated_at)
+    return Report.model_validate(data)
+
+
+class ReportRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def get_by_task(self, task_id: str) -> Report | None:
+        row = self.session.exec(
+            select(ReportTable).where(ReportTable.task_id == task_id)
+        ).first()
+        return _row_to_report(row) if row else None
+
+    def upsert_by_task(self, report: Report) -> Report:
+        existing = self.session.exec(
+            select(ReportTable).where(ReportTable.task_id == report.task_id)
+        ).first()
+        if existing is None:
+            row = ReportTable(
+                id=report.id,
+                task_id=report.task_id,
+                report_data=report.model_dump(mode="json"),
+                generated_at=report.generated_at,
+            )
+            self.session.add(row)
+        else:
+            existing.report_data = report.model_dump(mode="json")
+            existing.generated_at = report.generated_at
+            self.session.add(existing)
+        self.session.commit()
+        if existing is None:
+            self.session.refresh(row)
+            return _row_to_report(row)
+        self.session.refresh(existing)
+        return _row_to_report(existing)

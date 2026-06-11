@@ -1,16 +1,27 @@
-import type { ClaimLabel, EvidenceStrength } from './enums'
+import type { ClaimLabel } from './enums'
 
 export interface ReportClaim {
   id: string
-  text: string
+  claim: string
   label: ClaimLabel
+  confidence?: number
   evidence_ids: string[]
-  strength?: EvidenceStrength
+  requires_user_review?: boolean
 }
 
-/** M7 报告响应占位 — 本期 ReportPage 仅 empty 态 */
-export interface ReportResponse {
-  task_id: string
+export interface ReportSection {
+  key: string
+  title: string
   markdown: string
   claims: ReportClaim[]
+  is_pending?: boolean
+}
+
+export interface ReportResponse {
+  id: string
+  task_id: string
+  sections: ReportSection[]
+  pending_warnings: string[]
+  generated_at: string
+  markdown: string
 }
