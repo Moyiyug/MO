@@ -23,6 +23,12 @@ export function AppLayout() {
             <Link to="/" className="text-lg font-semibold tracking-tight">
               MO
             </Link>
+            <Link
+              to="/history"
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              历史
+            </Link>
             {taskId && (
               <span className="text-sm text-muted-foreground">
                 任务 {taskId.slice(0, 8)}…

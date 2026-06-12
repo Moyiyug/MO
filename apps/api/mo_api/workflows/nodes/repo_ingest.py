@@ -52,6 +52,7 @@ async def repo_ingest(state: MOState) -> MOState:
     repo_cards = list(state.get("repo_cards") or [])
     evidence_items = list(state.get("evidence_items") or [])
     ingested_repos = list(state.get("ingested_repos") or [])
+    errors = list(state.get("errors") or [])
     all_evidence_ids: list[str] = []
     vector_store = ctx.vector_store_factory(task_id)
 
@@ -98,8 +99,27 @@ async def repo_ingest(state: MOState) -> MOState:
         for item in ctx.evidence_service.list_by_task(task_id)
     ]
 
-    return {
+    repo_urls = list(state.get("repo_urls") or [])
+    if repo_urls and not repo_cards:
+        summary = (
+            errors[-1].get("msg", "all repositories failed to ingest")
+            if errors
+            else "no repository content ingested"
+        )
+        await publish_node_event(
+            ctx,
+            NODE_ID,
+            NodeStatus.FAILED,
+            error_message=summary[:200],
+            logs=[f"repo ingest failed: {summary}"],
+        )
+        raise RuntimeError(summary)
+
+    result: MOState = {
         "repo_cards": repo_cards,
         "evidence_items": evidence_items,
         "ingested_repos": ingested_repos,
     }
+    if errors:
+        result["errors"] = errors
+    return result

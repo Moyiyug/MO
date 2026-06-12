@@ -11,7 +11,8 @@ export interface TaskPermissions {
 
 export interface TaskCreateRequest {
   goal: string
-  repo_urls: string[]
+  /** F-015：可选；留空则由 RepoDiscovery 自动发现热门相关仓库 */
+  repo_urls?: string[]
   paper_urls?: string[]
   output_language?: OutputLanguage
   template?: string | null

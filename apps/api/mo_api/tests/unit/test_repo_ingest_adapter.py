@@ -30,6 +30,35 @@ async def test_ingest_maps_to_repo_digest(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_ingest_parses_string_content_blob(monkeypatch) -> None:
+    blob = (
+        "================================================\n"
+        "FILE: README.md\n"
+        "================================================\n"
+        "hello world\n\n"
+        "================================================\n"
+        "FILE: src/main.py\n"
+        "================================================\n"
+        "print('ok')\n"
+    )
+
+    async def fake_ingest_async(repo_url: str, **kwargs):
+        return ("summary text", "tree text", blob)
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "gitingest",
+        type("M", (), {"ingest_async": staticmethod(fake_ingest_async)})(),
+    )
+
+    adapter = GitingestAdapter()
+    digest = await adapter.ingest("https://github.com/o/r")
+
+    assert digest.content["README.md"] == "hello world"
+    assert "print('ok')" in digest.content["src/main.py"]
+
+
+@pytest.mark.asyncio
 async def test_ingest_rejects_oversized_content(monkeypatch) -> None:
     async def fake_ingest_async(repo_url: str, **kwargs):
         return ("s", "t", {"big.txt": "x" * 100})
@@ -54,6 +83,23 @@ async def test_ingest_rejects_oversized_content(monkeypatch) -> None:
     adapter = GitingestAdapter()
     with pytest.raises(RepoIngestError, match="max size"):
         await adapter.ingest("https://github.com/o/r")
+
+
+def test_include_patterns_normalize_dot_extensions(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "mo_api.adapters.repo_ingest.gitingest_adapter.get_settings",
+        lambda: type(
+            "S",
+            (),
+            {
+                "repo_ingest_max_bytes": 50_000_000,
+                "repo_ingest_exclude_patterns": ".git",
+                "repo_ingest_include_patterns": ".md,.py,*.json",
+            },
+        )(),
+    )
+    adapter = GitingestAdapter()
+    assert adapter._include_patterns == ["*.md", "*.py", "*.json"]
 
 
 @pytest.mark.asyncio

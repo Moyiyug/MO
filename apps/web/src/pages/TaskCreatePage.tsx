@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { useCreateTask, useGeneratePlan } from '@/api/tasks'
@@ -81,12 +81,17 @@ export function TaskCreatePage() {
   const isSubmitting = createTask.isPending || generatePlan.isPending
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl space-y-4">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/history">项目历史</Link>
+        </Button>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle>创建调研任务</CardTitle>
           <CardDescription>
-            填写研究目标与仓库信息。提交后将进入 PlanMode 生成计划（P-001）。
+            填写研究目标即可。仓库可留空，由 MO 自动发现热门相关仓库；提交后进入 PlanMode 生成计划（P-001 / F-015）。
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -105,7 +110,7 @@ export function TaskCreatePage() {
 
             <div className="space-y-2">
               <Label htmlFor="repos">
-                仓库 URL（1–5 个，每行一个）
+                仓库 URL（可选，0–5 个，每行一个）
               </Label>
               <Textarea
                 id="repos"
@@ -113,8 +118,10 @@ export function TaskCreatePage() {
                 onChange={(e) => setRepoText(e.target.value)}
                 placeholder="https://github.com/owner/repo"
                 rows={4}
-                required
               />
+              <p className="text-xs text-muted-foreground">
+                留空则由 MO 根据研究目标自动发现热门相关仓库，你将在计划审阅页选择调研对象。
+              </p>
             </div>
 
             <div className="space-y-2">

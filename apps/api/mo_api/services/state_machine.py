@@ -32,7 +32,11 @@ ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
         TaskStatus.PLAN_APPROVED,
         TaskStatus.REPLANNING,
     },
-    TaskStatus.PLAN_APPROVED: {TaskStatus.EXECUTING, TaskStatus.REPLANNING},
+    TaskStatus.PLAN_APPROVED: {
+        TaskStatus.EXECUTING,
+        TaskStatus.REPLANNING,
+        TaskStatus.PLANNING,
+    },
     TaskStatus.EXECUTING: {
         TaskStatus.REPLANNING,
         TaskStatus.REPORT_DRAFT,
@@ -41,10 +45,19 @@ ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
         TaskStatus.WAITING_USER_APPROVAL,
         TaskStatus.WAITING_USER_CLARIFICATION,
     },
-    TaskStatus.REPORT_DRAFT: {TaskStatus.REVIEW_REQUIRED},
-    TaskStatus.REVIEW_REQUIRED: {TaskStatus.DONE},
-    TaskStatus.DONE: set(),
-    TaskStatus.FAILED: set(),
+    TaskStatus.REPORT_DRAFT: {
+        TaskStatus.REVIEW_REQUIRED,
+        TaskStatus.PLANNING,
+        TaskStatus.REPLANNING,
+    },
+    TaskStatus.REVIEW_REQUIRED: {
+        TaskStatus.DONE,
+        TaskStatus.PLANNING,
+        TaskStatus.REPLANNING,
+    },
+    TaskStatus.DONE: {TaskStatus.PLANNING, TaskStatus.REPLANNING},
+    # 执行失败后允许回到 PlanMode 重新生成/重规划
+    TaskStatus.FAILED: {TaskStatus.PLANNING, TaskStatus.REPLANNING},
 }
 
 

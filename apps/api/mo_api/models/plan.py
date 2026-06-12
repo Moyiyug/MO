@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .enums import PlanStepStatus, PlanStepTool, RiskLevel
+from .repo_discovery import RepoCandidate
 
 DEFAULT_RUBRIC_WEIGHTS: dict[str, float] = {
     "reproducibility": 0.30,
@@ -60,6 +61,8 @@ class Plan(BaseModel):
     report_rubric: ReportRubric = Field(default_factory=ReportRubric)
     risk_summary: list[str] = Field(default_factory=list)
     approval_required: bool = True
+    # F-015：候选仓库清单（PlanMode 中供用户确认后写回 task.repo_urls）
+    repo_candidates: list[RepoCandidate] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

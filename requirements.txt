@@ -1,0 +1,20 @@
+# MO 项目 Python 依赖（后端）
+#
+# 环境：Python 3.13 推荐（与 apps/api/.venv 一致）
+# 安装示例（在仓库根目录执行）：
+#   python -m venv apps/api/.venv
+#   apps\api\.venv\Scripts\activate          # Windows
+#   pip install -r requirements.txt
+#
+# 详细说明见 README.md 与 docs/MO_操作指南.md
+
+-r apps/api/requirements.txt
+
+
+cd /d D:\MyProject\MO
+apps\api\.venv\Scripts\activate.bat
+uvicorn mo_api.main:app --reload --port 8000 --app-dir apps/api
+
+
+cd /d D:\MyProject\MO\apps\web
+npm run dev

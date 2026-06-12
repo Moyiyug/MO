@@ -56,3 +56,23 @@ def get_task(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="task not found",
         ) from exc
+
+
+@router.post(
+    "/{task_id}/rerun",
+    response_model=TaskCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def rerun_task(
+    task_id: str,
+    service: TaskService = Depends(get_task_service),
+) -> TaskCreateResponse:
+    """克隆任务输入为新任务并重进 PlanMode（F-013）。"""
+    try:
+        task = service.clone_task(task_id)
+    except TaskNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="task not found",
+        ) from exc
+    return TaskCreateResponse(task_id=task.task_id, status=task.status)

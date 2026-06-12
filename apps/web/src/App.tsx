@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ComparisonPage } from '@/pages/ComparisonPage'
+import { HistoryPage } from '@/pages/HistoryPage'
 import { PlanReviewPage } from '@/pages/PlanReviewPage'
 import { ReportPage } from '@/pages/ReportPage'
 import { TaskCreatePage } from '@/pages/TaskCreatePage'
@@ -11,6 +12,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<TaskCreatePage />} />
+      <Route path="/history" element={<HistoryPage />} />
       <Route path="/tasks/:taskId" element={<AppLayout />}>
         <Route index element={<Navigate to="plan" replace />} />
         <Route path="plan" element={<PlanReviewPage />} />

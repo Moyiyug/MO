@@ -130,6 +130,7 @@ async def test_execute_graph_interrupt_and_resume(
         nodes = {e.node for e in events if e.status.value == "completed"}
         assert "repo_ingest" in nodes
         assert "code_understanding" in nodes
+        assert "sandbox_runner" in {e.node for e in events}
 
 
 @pytest.mark.asyncio
@@ -187,6 +188,7 @@ async def test_graph_direct_invoke(
 
     from mo_api.adapters.paper_research import GPTResearcherAdapter, PaperQAAdapter
     from mo_api.adapters.repo_ingest import GitingestAdapter
+    from mo_api.adapters.sandbox import SandboxRunner
     from mo_api.services.evidence_service import EvidenceService
     from mo_api.services.event_bus import EventBus
     from mo_api.storage.vector_store import TaskVectorStore
@@ -230,6 +232,7 @@ async def test_graph_direct_invoke(
                 vector_store_factory=lambda tid: TaskVectorStore(
                     tid, persist_dir=chroma_dir
                 ),
+                sandbox_runner=SandboxRunner(),
             ),
         )
         try:

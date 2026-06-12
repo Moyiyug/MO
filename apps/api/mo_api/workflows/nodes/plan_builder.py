@@ -13,6 +13,7 @@ from ...models.plan import (
     PlanStep,
     ReportRubric,
 )
+from ...models.repo_discovery import RepoCandidate
 from ..state import MOState
 
 
@@ -50,26 +51,50 @@ def build_plan_from_state(state: MOState) -> Plan:
     permissions = dict(state.get("permissions") or {})
     answers = dict(state.get("clarification_answers") or {})
 
+    candidates = [
+        RepoCandidate.model_validate(c) for c in (state.get("repo_candidates") or [])
+    ]
+    selected = [c for c in candidates if c.selected]
+    # 计划步骤数量依据：已选 > 全部候选 > 用户直接提供的 repo_urls
+    effective = selected or candidates
+    repo_count = len(effective) if effective else len(repo_urls)
+
     allow_clone = bool(permissions.get("allow_repo_clone", True))
     allow_web = bool(permissions.get("allow_web_search", False))
     allow_smoke = bool(permissions.get("allow_smoke_test", False))
 
-    task_summary = f"{goal}（调研 {len(repo_urls)} 个仓库）"
+    if candidates and not selected:
+        task_summary = f"{goal}（已发现 {len(candidates)} 个候选仓库，待选择调研对象）"
+    else:
+        task_summary = f"{goal}（调研 {repo_count} 个仓库）"
 
     confirmed_context = [
         f"研究目标: {goal}",
-        f"仓库数量: {len(repo_urls)}",
+        f"待调研仓库数量: {repo_count}",
         f"输出语言: {output_language}",
         f"允许克隆仓库: {allow_clone}",
         f"允许联网调研: {allow_web}",
     ]
-    if repo_urls:
+    if candidates:
+        confirmed_context.append(f"自动发现候选仓库: {len(candidates)} 个")
+    if effective:
+        confirmed_context.append(
+            "仓库列表: " + ", ".join(c.repo_name for c in effective[:10])
+        )
+    elif repo_urls:
         confirmed_context.append("仓库列表: " + ", ".join(repo_urls))
 
     unknowns: list[str] = []
     clarifying_questions: list[dict] = []
 
-    if len(repo_urls) > 1 and "comparison_focus" not in answers:
+    if candidates and not selected:
+        unknowns.append(
+            f"已自动发现 {len(candidates)} 个候选仓库，请在计划审阅页勾选 1-5 个作为调研对象"
+        )
+    if not candidates and not repo_urls:
+        unknowns.append("未发现候选仓库且未提供仓库 URL，请补充仓库或调整研究目标")
+
+    if repo_count > 1 and "comparison_focus" not in answers:
         clarifying_questions.append(
             {
                 "id": "comparison_focus",
@@ -98,7 +123,7 @@ def build_plan_from_state(state: MOState) -> Plan:
     add(
         "step_repo_ingest",
         title="仓库调研",
-        description="使用 gitingest 提取 README、依赖、目录结构与关键文件摘要",
+        description="对选定的候选仓库使用 gitingest 提取 README、依赖、目录结构与关键文件摘要",
         tool=PlanStepTool.REPO_INGEST,
         risk_level=RiskLevel.MEDIUM if not allow_clone else RiskLevel.LOW,
         requires_approval=not allow_clone,
@@ -132,7 +157,7 @@ def build_plan_from_state(state: MOState) -> Plan:
         expected_outputs=["ReproducibilityScore"],
     )
 
-    if len(repo_urls) > 1:
+    if repo_count > 1:
         add(
             "step_comparison",
             title="多仓库对比",
@@ -190,6 +215,7 @@ def build_plan_from_state(state: MOState) -> Plan:
         report_rubric=ReportRubric(weights=dict(DEFAULT_RUBRIC_WEIGHTS)),
         risk_summary=risk_summary,
         approval_required=True,
+        repo_candidates=candidates,
         created_at=datetime.now(timezone.utc),
     )
 

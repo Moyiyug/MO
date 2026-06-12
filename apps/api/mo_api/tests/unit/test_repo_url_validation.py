@@ -59,9 +59,9 @@ def test_validate_repo_urls_strips_whitespace() -> None:
     ]
 
 
-def test_validate_repo_urls_empty_rejected() -> None:
-    with pytest.raises(RepoUrlError):
-        validate_repo_urls([])
+def test_validate_repo_urls_empty_allowed() -> None:
+    # F-015：repo_urls 改为可选，空列表合法（由 RepoDiscovery 自动发现）
+    assert validate_repo_urls([]) == []
 
 
 def test_validate_repo_urls_too_many_rejected() -> None:

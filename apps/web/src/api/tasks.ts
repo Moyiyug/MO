@@ -76,6 +76,12 @@ export function replan(taskId: string, payload: ReplanRequest): Promise<Plan> {
   })
 }
 
+export function rerunTask(taskId: string): Promise<TaskCreateResponse> {
+  return api<TaskCreateResponse>(`/api/tasks/${taskId}/rerun`, {
+    method: 'POST',
+  })
+}
+
 export function useTask(
   taskId: string | undefined,
   options?: Omit<UseQueryOptions<TaskResponse>, 'queryKey' | 'queryFn'>,
@@ -175,6 +181,16 @@ export function useReplan() {
     onSuccess: (_data, { taskId }) => {
       void qc.invalidateQueries({ queryKey: taskKeys.plan(taskId) })
       void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) })
+    },
+  })
+}
+
+export function useRerunTask() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: rerunTask,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: taskKeys.all })
     },
   })
 }

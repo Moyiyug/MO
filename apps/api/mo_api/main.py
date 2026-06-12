@@ -8,8 +8,15 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, status
+
+# 在 Settings 加载前将 .env 全部键值注入 os.environ
+# ——确保 ProfileStore.resolve_api_key() 能读到 DEEPSEEK_API_KEY 等
+_ENV_FILE = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+load_dotenv(_ENV_FILE)
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +24,18 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .adapters.model_gateway.gateway import ModelCallError, ModelConfigError
-from .routers import comparison, events, models, plans, report, repos_evidence, research, tasks
+from .routers import (
+    comparison,
+    demo,
+    events,
+    models,
+    plans,
+    report,
+    repos_evidence,
+    research,
+    tasks,
+)
+from .services.demo_service import DemoService
 from .services.event_bus import get_event_bus
 from .services.execution_service import get_execution_service
 from .storage.db import init_db
@@ -30,6 +48,14 @@ async def lifespan(app: FastAPI):
     init_db()
     app.state.event_bus = get_event_bus()
     app.state.execution_service = get_execution_service()
+    settings = get_settings()
+    if settings.demo_mode:
+        from sqlmodel import Session
+
+        from .storage.db import get_engine
+
+        with Session(get_engine()) as session:
+            DemoService(session).seed_demo_task()
     yield
 
 
@@ -40,6 +66,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
+        allow_origin_regex=settings.cors_allow_origin_regex or None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -91,6 +118,7 @@ def create_app() -> FastAPI:
     app.include_router(report.router)
     app.include_router(comparison.router)
     app.include_router(research.router)
+    app.include_router(demo.router)
     return app
 
 

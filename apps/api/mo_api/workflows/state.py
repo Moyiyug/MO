@@ -9,6 +9,7 @@ class MOState(TypedDict, total=False):
     task_id: str
     goal: str
     repo_urls: list[str]
+    repo_candidates: list[dict[str, Any]]
     paper_urls: list[str]
     output_language: str
     template: str | None
@@ -24,3 +25,4 @@ class MOState(TypedDict, total=False):
     comparison: dict[str, Any] | None
     paper_materials: list[dict[str, Any]]
     reproducibility: dict[str, Any] | None
+    sandbox_completed: bool

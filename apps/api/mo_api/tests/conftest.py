@@ -175,6 +175,22 @@ def mock_execute_dependencies(monkeypatch, request, tmp_path):
             ],
         )
 
+    # RepoDiscovery（F-015）：PlanMode 节点不得真实访问 GitHub / 调模型
+    from mo_api.adapters.repo_discovery.base import RepoDiscoveryAdapter
+
+    class _FakeDiscoveryAdapter(RepoDiscoveryAdapter):
+        async def search(self, queries, *, per_query=5, limit=15):
+            return []
+
+    monkeypatch.setattr(
+        "mo_api.workflows.nodes.repo_discovery.get_repo_discovery_adapter",
+        lambda: _FakeDiscoveryAdapter(),
+    )
+    monkeypatch.setattr(
+        "mo_api.workflows.nodes.repo_discovery.get_model_gateway",
+        lambda: _FakeGateway(),
+    )
+
     monkeypatch.setattr(
         "mo_api.adapters.repo_ingest.gitingest_adapter.GitingestAdapter.ingest",
         fake_ingest,

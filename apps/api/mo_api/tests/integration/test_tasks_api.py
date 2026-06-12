@@ -1,8 +1,6 @@
-"""任务 API 集成测试（PRD F-001, §5）。"""
+"""任务 API 集成测试（PRD F-001, §5, F-015）。"""
 
 from __future__ import annotations
-
-import pytest
 
 
 async def test_create_task_returns_planning(client, valid_task_payload) -> None:
@@ -56,17 +54,26 @@ async def test_create_rejects_too_many_repos(client) -> None:
     assert resp.status_code == 422
 
 
-async def test_create_rejects_empty_repos(client) -> None:
+async def test_create_accepts_empty_repos(client) -> None:
+    """F-015：repo_urls 可留空，由 RepoDiscovery 自动发现。"""
     resp = await client.post(
         "/api/tasks",
-        json={"goal": "x", "repo_urls": []},
+        json={"goal": "对比 RAG 框架", "repo_urls": []},
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 201
+    assert resp.json()["status"] == "PLANNING"
 
 
-@pytest.mark.parametrize("missing", ["goal", "repo_urls"])
-async def test_create_rejects_missing_required(client, valid_task_payload, missing) -> None:
+async def test_create_accepts_missing_repos(client, valid_task_payload) -> None:
+    """F-015：未提供 repo_urls 字段时也应被接受（默认空列表）。"""
     payload = dict(valid_task_payload)
-    payload.pop(missing)
+    payload.pop("repo_urls")
+    resp = await client.post("/api/tasks", json=payload)
+    assert resp.status_code == 201
+
+
+async def test_create_rejects_missing_goal(client, valid_task_payload) -> None:
+    payload = dict(valid_task_payload)
+    payload.pop("goal")
     resp = await client.post("/api/tasks", json=payload)
     assert resp.status_code == 422

@@ -76,6 +76,19 @@ class TaskRepository:
         self.session.refresh(row)
         return _to_response(row)
 
+    def update_repo_urls(
+        self, task_id: str, repo_urls: list[str]
+    ) -> TaskResponse | None:
+        """更新任务的仓库列表（F-015：用户在候选清单中选定后写回）。"""
+        row = self.session.get(TaskTable, task_id)
+        if row is None:
+            return None
+        row.repo_urls = list(repo_urls)
+        self.session.add(row)
+        self.session.commit()
+        self.session.refresh(row)
+        return _to_response(row)
+
 
 class PlanRepository:
     def __init__(self, session: Session) -> None:

@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import re
 
-MIN_REPO_COUNT = 1
+# repo_urls 改为可选（F-015）：创建任务时可留空，由 RepoDiscovery 自动发现。
+# 仍校验上限与单条 URL 合法性。
+MIN_REPO_COUNT = 0
 MAX_REPO_COUNT = 5
 
 # https://github.com/<owner>/<repo>  其中 owner/repo 允许字母数字、._-

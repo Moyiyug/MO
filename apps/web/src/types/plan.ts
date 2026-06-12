@@ -3,6 +3,7 @@ import type {
   PlanStepTool,
   RiskLevel,
 } from './enums'
+import type { RepoCandidate } from './repoDiscovery'
 
 export const DEFAULT_RUBRIC_WEIGHTS: Record<string, number> = {
   reproducibility: 0.3,
@@ -48,6 +49,7 @@ export interface Plan {
   report_rubric: ReportRubric
   risk_summary: string[]
   approval_required: boolean
+  repo_candidates: RepoCandidate[]
   created_at: string
 }
 

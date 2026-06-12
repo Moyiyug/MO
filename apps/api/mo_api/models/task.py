@@ -26,10 +26,14 @@ class TaskPermissions(BaseModel):
 
 
 class TaskCreateRequest(BaseModel):
-    """创建任务请求体（PRD F-001）。"""
+    """创建任务请求体（PRD F-001）。
+
+    repo_urls 可选（0-5 个）：留空时由 RepoDiscovery 自动发现热门相关仓库（F-015）；
+    也可填 1-5 个种子仓库作为补充。
+    """
 
     goal: str = Field(min_length=1, max_length=4000)
-    repo_urls: list[str] = Field(min_length=1, max_length=5)
+    repo_urls: list[str] = Field(default_factory=list, max_length=5)
     paper_urls: list[str] = Field(default_factory=list)
     output_language: OutputLanguage = OutputLanguage.ZH
     template: str | None = None

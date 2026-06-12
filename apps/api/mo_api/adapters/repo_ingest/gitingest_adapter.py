@@ -14,6 +14,51 @@ class RepoIngestError(Exception):
     """仓库摄取失败（脱敏消息）。"""
 
 
+def _normalize_glob_pattern(pattern: str) -> str:
+    """将 `.md` 规范为 `*.md`，避免白名单误配导致摄取为空。"""
+    p = pattern.strip()
+    if not p or "*" in p:
+        return p
+    if p.startswith("."):
+        return f"*{p}"
+    return p
+
+
+_FILE_BLOCK_RE = re.compile(
+    r"={40,}\s*\nFILE:\s*(.+?)\s*\n={40,}\s*\n",
+    re.MULTILINE,
+)
+
+
+def _parse_gitingest_content(raw: str | dict[str, str]) -> dict[str, str]:
+    """兼容 gitingest 新版（content 为拼接字符串）与旧版（path→text 字典）。"""
+    if isinstance(raw, dict):
+        return dict(raw)
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+
+    parts = _FILE_BLOCK_RE.split(raw)
+    if len(parts) < 3:
+        return {"_ingest.txt": raw.strip()}
+
+    files: dict[str, str] = {}
+    i = 1
+    while i + 1 < len(parts):
+        path = parts[i].strip()
+        body = parts[i + 1].strip()
+        if path:
+            files[path] = body
+        i += 2
+    return files or {"_ingest.txt": raw.strip()}
+
+
+def _format_ingest_error(exc: BaseException, token: str | None = None) -> str:
+    msg = str(exc).strip()
+    if not msg:
+        msg = f"{type(exc).__name__}: repo ingest failed"
+    return _sanitize_error(msg, token)
+
+
 def _sanitize_error(message: str, token: str | None = None) -> str:
     text = message or "repo ingest failed"
     if token:
@@ -29,10 +74,18 @@ class GitingestAdapter(RepoIngestAdapter):
         settings = get_settings()
         self._max_bytes = settings.repo_ingest_max_bytes
         patterns = settings.repo_ingest_exclude_patterns
-        self._exclude_patterns = [p.strip() for p in patterns.split(",") if p.strip()]
+        self._exclude_patterns = [
+            _normalize_glob_pattern(p)
+            for p in patterns.split(",")
+            if p.strip()
+        ]
         include_raw = getattr(settings, "repo_ingest_include_patterns", "")
         self._include_patterns = (
-            [p.strip() for p in include_raw.split(",") if p.strip()]
+            [
+                _normalize_glob_pattern(p)
+                for p in include_raw.split(",")
+                if p.strip()
+            ]
             if include_raw
             else []
         )
@@ -51,21 +104,29 @@ class GitingestAdapter(RepoIngestAdapter):
             ) from exc
 
         kwargs: dict = {
-            "exclude_patterns": self._exclude_patterns,
+            "exclude_patterns": set(self._exclude_patterns),
         }
         if self._include_patterns:
-            kwargs["include_patterns"] = self._include_patterns
+            kwargs["include_patterns"] = set(self._include_patterns)
         if effective_token:
             kwargs["token"] = effective_token
 
         try:
-            summary, tree, content = await ingest_async(repo_url, **kwargs)
+            summary, tree, raw_content = await ingest_async(repo_url, **kwargs)
         except Exception as exc:
             raise RepoIngestError(
-                _sanitize_error(str(exc), effective_token)
+                _format_ingest_error(exc, effective_token)
             ) from exc
 
-        total_size = sum(len(v.encode("utf-8", errors="ignore")) for v in content.values())
+        content = _parse_gitingest_content(raw_content)
+        if not content:
+            raise RepoIngestError(
+                "repository ingest returned no file content (check include/exclude patterns)"
+            )
+
+        total_size = sum(
+            len(v.encode("utf-8", errors="ignore")) for v in content.values()
+        )
         if total_size > self._max_bytes:
             raise RepoIngestError(
                 f"repository content exceeds max size ({self._max_bytes} bytes)"
@@ -74,6 +135,6 @@ class GitingestAdapter(RepoIngestAdapter):
         return RepoDigest(
             summary=summary or "",
             tree=tree or "",
-            content=dict(content or {}),
+            content=content,
             source_uri=repo_url,
         )

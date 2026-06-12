@@ -11,7 +11,7 @@ import uuid
 from sqlmodel import Session
 
 from ..models.enums import TaskStatus
-from ..models.task import TaskCreateRequest, TaskResponse
+from ..models.task import TaskCreateRequest, TaskPermissions, TaskResponse
 from ..storage.repositories import TaskRepository
 from ..storage.tables import TaskTable
 from .state_machine import ensure_transition
@@ -53,3 +53,27 @@ class TaskService:
         if task is None:
             raise TaskNotFoundError(task_id)
         return task
+
+    def clone_task(self, task_id: str) -> TaskResponse:
+        """克隆已有任务输入为新任务（F-013 rerun）。
+
+        复制 goal/repos/papers/permissions 等，新任务进入 PLANNING，不触发副作用。
+        """
+        source = self.repo.get(task_id)
+        if source is None:
+            raise TaskNotFoundError(task_id)
+
+        permissions = TaskPermissions(**source.permissions.model_dump())
+        # 重置高风险权限：rerun 需用户在新任务中重新授权（R-004）
+        permissions.allow_web_search = False
+        permissions.allow_smoke_test = False
+        permissions.allow_dependency_install = False
+        payload = TaskCreateRequest(
+            goal=source.goal,
+            repo_urls=list(source.repo_urls),
+            paper_urls=list(source.paper_urls),
+            output_language=source.output_language,
+            template=source.template,
+            permissions=permissions,
+        )
+        return self.create_task(payload)

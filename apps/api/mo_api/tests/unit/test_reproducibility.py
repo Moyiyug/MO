@@ -96,6 +96,9 @@ async def test_reproducibility_eight_dimensions_and_label(
                 vector_store_factory=lambda tid: type(
                     "VS", (), {"add_texts": lambda *a, **k: None}
                 )(),
+                sandbox_runner=__import__(
+                    "mo_api.adapters.sandbox", fromlist=["SandboxRunner"]
+                ).SandboxRunner(),
             ),
         )
         try:
@@ -176,6 +179,9 @@ async def test_paper_research_pending_when_relationship_unclear(
                 vector_store_factory=lambda tid: type(
                     "VS", (), {"add_texts": lambda *a, **k: None}
                 )(),
+                sandbox_runner=__import__(
+                    "mo_api.adapters.sandbox", fromlist=["SandboxRunner"]
+                ).SandboxRunner(),
             ),
         )
         try:
@@ -236,6 +242,9 @@ async def test_reproducibility_llm_failure_per_dimension(
                 vector_store_factory=lambda tid: type(
                     "VS", (), {"add_texts": lambda *a, **k: None}
                 )(),
+                sandbox_runner=__import__(
+                    "mo_api.adapters.sandbox", fromlist=["SandboxRunner"]
+                ).SandboxRunner(),
             ),
         )
         try:
@@ -293,6 +302,9 @@ async def test_reproducibility_empty_repos_skipped(
                 vector_store_factory=lambda tid: type(
                     "VS", (), {"add_texts": lambda *a, **k: None}
                 )(),
+                sandbox_runner=__import__(
+                    "mo_api.adapters.sandbox", fromlist=["SandboxRunner"]
+                ).SandboxRunner(),
             ),
         )
         try:

@@ -13,6 +13,7 @@ from langgraph.types import interrupt
 
 from ..config import get_settings
 from .nodes.plan_builder import plan_builder
+from .nodes.repo_discovery import repo_discovery
 from .nodes.task_intake import task_intake
 from .state import MOState
 
@@ -38,10 +39,12 @@ def approval_gate(state: MOState) -> MOState:
 def build_plan_graph(checkpointer: SqliteSaver) -> Any:
     graph = StateGraph(MOState)
     graph.add_node("task_intake", task_intake)
+    graph.add_node("repo_discovery", repo_discovery)
     graph.add_node("plan_builder", plan_builder)
     graph.add_node("approval_gate", approval_gate)
     graph.add_edge(START, "task_intake")
-    graph.add_edge("task_intake", "plan_builder")
+    graph.add_edge("task_intake", "repo_discovery")
+    graph.add_edge("repo_discovery", "plan_builder")
     graph.add_edge("plan_builder", "approval_gate")
     graph.add_edge("approval_gate", END)
     return graph.compile(checkpointer=checkpointer)

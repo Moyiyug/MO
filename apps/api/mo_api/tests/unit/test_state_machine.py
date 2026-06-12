@@ -29,7 +29,7 @@ def test_any_to_failed_allowed() -> None:
 
 def test_illegal_transition_rejected() -> None:
     assert can_transition(TaskStatus.CREATED, TaskStatus.DONE) is False
-    assert can_transition(TaskStatus.DONE, TaskStatus.PLANNING) is False
+    assert can_transition(TaskStatus.DONE, TaskStatus.EXECUTING) is False
 
 
 def test_ensure_transition_raises_on_illegal() -> None:
@@ -61,3 +61,14 @@ def test_m2_cannot_skip_approval_to_executing() -> None:
     assert can_transition(
         TaskStatus.WAITING_USER_APPROVAL, TaskStatus.EXECUTING
     ) is False
+
+
+def test_failed_can_return_to_plan_mode() -> None:
+    assert can_transition(TaskStatus.FAILED, TaskStatus.PLANNING) is True
+    assert can_transition(TaskStatus.FAILED, TaskStatus.REPLANNING) is True
+
+
+def test_post_report_can_return_to_plan_mode() -> None:
+    assert can_transition(TaskStatus.REVIEW_REQUIRED, TaskStatus.PLANNING) is True
+    assert can_transition(TaskStatus.REPORT_DRAFT, TaskStatus.PLANNING) is True
+    assert can_transition(TaskStatus.DONE, TaskStatus.PLANNING) is True

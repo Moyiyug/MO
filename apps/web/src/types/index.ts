@@ -1,6 +1,7 @@
 export * from './enums'
 export * from './task'
 export * from './plan'
+export * from './repoDiscovery'
 export * from './events'
 export * from './report'
 export * from './comparison'

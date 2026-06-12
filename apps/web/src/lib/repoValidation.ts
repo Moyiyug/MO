@@ -15,7 +15,7 @@ export function parseRepoUrls(text: string): string[] {
 }
 
 export function validateRepoUrlList(urls: string[]): string | null {
-  if (urls.length < 1) return '至少填写 1 个仓库 URL'
+  // F-015：repo_urls 可选（0-5）。留空时由 RepoDiscovery 自动发现。
   if (urls.length > 5) return '最多 5 个仓库 URL'
   for (const u of urls) {
     if (!isValidRepoUrl(u)) {

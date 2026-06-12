@@ -11,6 +11,7 @@ import {
   useSubmitClarifications,
   useTask,
 } from '@/api/tasks'
+import { useSelectRepoCandidates } from '@/api/repoDiscovery'
 import { QueryState } from '@/components/common/QueryState'
 import { TaskStatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,7 @@ export function PlanReviewPage() {
   const approvePlan = useApprovePlan()
   const replan = useReplan()
   const submitClarifications = useSubmitClarifications()
+  const selectCandidates = useSelectRepoCandidates()
 
   const {
     rubricWeights,
@@ -65,6 +67,8 @@ export function PlanReviewPage() {
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReplan, setConfirmReplan] = useState(false)
   const [replanReason, setReplanReason] = useState('')
+  const [selectedRepoUrls, setSelectedRepoUrls] = useState<string[]>([])
+  const [syncedPlanId, setSyncedPlanId] = useState<string | null>(null)
 
   const task = taskQuery.data
   const plan = planQuery.data
@@ -73,22 +77,68 @@ export function PlanReviewPage() {
     if (plan) initFromPlan(plan)
   }, [plan, initFromPlan])
 
+  // 计划变化时用服务端的选中状态重置本地草稿（React 推荐的渲染期重置模式）
+  if (plan && plan.id !== syncedPlanId) {
+    setSyncedPlanId(plan.id)
+    setSelectedRepoUrls(
+      plan.repo_candidates.filter((c) => c.selected).map((c) => c.repo_url),
+    )
+  }
+
   const isWaitingUser =
     task && WAITING_USER_TASK_STATUSES.includes(task.status)
   const needsClarification = task?.status === 'WAITING_USER_CLARIFICATION'
   const needsApproval = task?.status === 'WAITING_USER_APPROVAL'
+  const isExecuting = task?.status === 'EXECUTING'
   const isApproved =
-    task?.status === 'PLAN_APPROVED' || task?.status === 'EXECUTING'
+    task?.status === 'PLAN_APPROVED' || isExecuting
+  const isFailed = task?.status === 'FAILED'
+  const isPostReport =
+    task?.status === 'REVIEW_REQUIRED' ||
+    task?.status === 'REPORT_DRAFT' ||
+    task?.status === 'DONE'
+  const canRegeneratePlan = !isExecuting && !generatePlan.isPending
   const canReplan =
     task?.status === 'WAITING_USER_APPROVAL' ||
     task?.status === 'PLAN_APPROVED' ||
-    task?.status === 'EXECUTING'
+    isExecuting ||
+    isFailed ||
+    isPostReport
 
   const missingClarifications = plan
     ? unansweredRequired(plan.clarifying_questions, clarificationAnswers)
     : []
 
   const rubricValid = isRubricValid(rubricWeights)
+
+  const candidates = plan?.repo_candidates ?? []
+  const hasCandidates = candidates.length > 0
+  const noRepoSelected = (task?.repo_urls?.length ?? 0) === 0
+  const selectionValid =
+    selectedRepoUrls.length >= 1 && selectedRepoUrls.length <= 5
+
+  const toggleRepo = (url: string) => {
+    setSelectedRepoUrls((prev) =>
+      prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url],
+    )
+  }
+
+  const handleConfirmSelection = async () => {
+    if (!taskId) return
+    if (!selectionValid) {
+      toast.error('请选择 1–5 个仓库作为调研对象')
+      return
+    }
+    try {
+      await selectCandidates.mutateAsync({
+        taskId,
+        payload: { selected_repo_urls: selectedRepoUrls },
+      })
+      toast.success('已确认调研仓库')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '确认失败')
+    }
+  }
 
   const handleSubmitClarifications = async () => {
     if (!taskId || !plan) return
@@ -115,6 +165,10 @@ export function PlanReviewPage() {
     if (!taskId) return
     if (!rubricValid) {
       toast.error('评分权重之和必须约等于 1.0')
+      return
+    }
+    if (noRepoSelected) {
+      toast.error('请先在候选清单中选择至少一个调研仓库')
       return
     }
     try {
@@ -220,7 +274,7 @@ export function PlanReviewPage() {
             {needsApproval && (
               <Button
                 onClick={() => setConfirmApprove(true)}
-                disabled={!rubricValid || approvePlan.isPending}
+                disabled={!rubricValid || approvePlan.isPending || noRepoSelected}
               >
                 批准计划
               </Button>
@@ -228,7 +282,7 @@ export function PlanReviewPage() {
             <Button
               variant="outline"
               onClick={handleRegenerate}
-              disabled={generatePlan.isPending || isApproved}
+              disabled={!canRegeneratePlan}
             >
               重新生成
             </Button>
@@ -277,6 +331,101 @@ export function PlanReviewPage() {
               </CardContent>
             </Card>
           </div>
+
+          {hasCandidates && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  候选仓库（自动发现）
+                </CardTitle>
+                <CardDescription>
+                  根据研究目标自动发现的高相关热门仓库（F-015）。请勾选 1–5 个作为调研对象，确认后方可批准计划。
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {isWaitingUser && noRepoSelected && (
+                  <div
+                    className="flex items-center gap-2 rounded-md border border-amber-400 bg-amber-50 p-2 text-sm text-amber-900"
+                    role="alert"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    尚未确认调研仓库，请勾选后点击“确认调研仓库”。
+                  </div>
+                )}
+                {candidates.map((c) => {
+                  const checked = selectedRepoUrls.includes(c.repo_url)
+                  return (
+                    <label
+                      key={c.repo_url}
+                      className={cn(
+                        'flex cursor-pointer gap-3 rounded-lg border p-3',
+                        checked && 'border-emerald-400 bg-emerald-50/40',
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4"
+                        checked={checked}
+                        onChange={() => toggleRepo(c.repo_url)}
+                        disabled={!isWaitingUser || selectCandidates.isPending}
+                      />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <a
+                            href={c.repo_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="truncate font-medium text-blue-700 hover:underline"
+                          >
+                            {c.repo_name}
+                          </a>
+                          <Badge variant="outline">★ {c.stars}</Badge>
+                          {c.language && (
+                            <Badge variant="outline">{c.language}</Badge>
+                          )}
+                          {c.discovered_by === 'user_seed' ? (
+                            <Badge className="bg-slate-100 text-slate-700">
+                              种子
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-blue-100 text-blue-900">
+                              相关度 {(c.relevance_score * 100).toFixed(0)}%
+                            </Badge>
+                          )}
+                        </div>
+                        {c.description && (
+                          <p className="line-clamp-2 text-sm text-muted-foreground">
+                            {c.description}
+                          </p>
+                        )}
+                        {c.relevance_reason && (
+                          <p className="text-xs text-muted-foreground">
+                            理由：{c.relevance_reason}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  )
+                })}
+                {isWaitingUser && (
+                  <div className="flex items-center gap-3">
+                    <Button
+                      type="button"
+                      onClick={handleConfirmSelection}
+                      disabled={!selectionValid || selectCandidates.isPending}
+                    >
+                      确认调研仓库（{selectedRepoUrls.length}）
+                    </Button>
+                    {!selectionValid && (
+                      <span className="text-sm text-destructive">
+                        请选择 1–5 个仓库
+                      </span>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {plan.clarifying_questions.length > 0 && (
             <Card>

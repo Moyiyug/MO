@@ -117,9 +117,11 @@ def test_select_vision_without_profile_raises(
         gw.select(need_vision=True)
 
 
-def test_has_api_key_false_when_env_missing(store: ProfileStore) -> None:
+def test_has_api_key_false_when_env_missing(store: ProfileStore, monkeypatch) -> None:
     profile = store.by_id("deepseek-reasoning")
     assert profile is not None
+    # load_dotenv() 可能会从 .env 注入真实 Key；测试时显式清除
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     assert store.has_api_key(profile) is False
 
 

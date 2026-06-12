@@ -16,6 +16,7 @@ from sqlmodel import Session
 from ..adapters.model_gateway.gateway import get_model_gateway
 from ..adapters.paper_research import GPTResearcherAdapter, PaperQAAdapter
 from ..adapters.repo_ingest import GitingestAdapter
+from ..adapters.sandbox import SandboxRunner
 from ..config import get_settings
 from ..models.enums import NodeStatus, TaskStatus
 from ..models.events import NodeEvent
@@ -107,6 +108,7 @@ class ExecutionService:
             web_adapter=GPTResearcherAdapter(),
             model_gateway=get_model_gateway(),
             vector_store_factory=_vector_factory,
+            sandbox_runner=SandboxRunner(settings),
         )
 
     @staticmethod
@@ -225,7 +227,7 @@ class ExecutionService:
         - GraphInterrupt → WAITING_USER
         - 其它异常 → FAILED（兜底保证）
         """
-        snapshot = graph.get_state(config)
+        snapshot = await graph.aget_state(config)
         is_resume = bool(snapshot.values) and bool(snapshot.next)
 
         # ---- 发布初始节点状态 ----
@@ -261,7 +263,7 @@ class ExecutionService:
             ):
                 # 检测 interrupt（stream_mode="updates" 以 chunk 形式返回）
                 if "__interrupt__" in chunk:
-                    snapshot = graph.get_state(config)
+                    snapshot = await graph.aget_state(config)
                     if snapshot.next:
                         node = snapshot.next[0]
                         self._pending_interrupt[task_id] = node
@@ -297,7 +299,7 @@ class ExecutionService:
                     )
 
                 # 下一个节点 → PENDING
-                snapshot = graph.get_state(config)
+                snapshot = await graph.aget_state(config)
                 if snapshot.next:
                     for node in snapshot.next:
                         await self._publish_node(
@@ -312,7 +314,7 @@ class ExecutionService:
 
         except GraphInterrupt:
             # ainvoke 模式下的中断（兼容旧调用路径）
-            snapshot = graph.get_state(config)
+            snapshot = await graph.aget_state(config)
             if snapshot.next:
                 node = snapshot.next[0]
                 self._pending_interrupt[task_id] = node
@@ -326,7 +328,7 @@ class ExecutionService:
 
         except Exception as exc:
             # 兜底：节点异常 → FAILED
-            snapshot = graph.get_state(config)
+            snapshot = await graph.aget_state(config)
             failed_node = (
                 snapshot.next[0] if snapshot.next else "unknown"
             )
@@ -349,7 +351,7 @@ class ExecutionService:
                     task_id,
                     self._build_execute_context(task_id, session),
                 )
-                snapshot = graph.get_state(config)
+                snapshot = await graph.aget_state(config)
                 if not snapshot.values:
                     state = self._build_initial_state(session, task_id)
                 else:
