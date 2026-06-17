@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,19 +76,19 @@ async def test_run_mock_subprocess(tmp_path: Path, monkeypatch) -> None:
     runner = SandboxRunner(_settings(tmp_path))
     cwd = runner.resolve_workdir("t1", "https://github.com/o/r")
 
-    class _Proc:
+    class _MockPopen:
         returncode = 0
 
-        async def communicate(self):
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def communicate(self, timeout=None):
             return b"ok", b""
 
         def kill(self):
             pass
 
-    async def fake_exec(*args, **kwargs):
-        return _Proc()
-
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(subprocess, "Popen", _MockPopen)
     result = await runner.run("python --version", cwd)
     assert result.guard_rejected is False
     assert result.exit_code == 0
@@ -99,20 +100,22 @@ async def test_run_timeout(tmp_path: Path, monkeypatch) -> None:
     runner = SandboxRunner(_settings(tmp_path))
     cwd = runner.resolve_workdir("t1", "https://github.com/o/r")
 
-    class _Proc:
+    class _TimeoutPopen:
         returncode = None
 
-        async def communicate(self):
-            await asyncio.sleep(10)
+        def __init__(self, *args, **kwargs):
+            self._killed = False
+
+        def communicate(self, timeout=None):
+            if not self._killed:
+                raise subprocess.TimeoutExpired(cmd="python", timeout=timeout or 5, output=b"", stderr=b"")
             return b"", b""
 
         def kill(self):
+            self._killed = True
             self.returncode = -9
 
-    async def fake_exec(*args, **kwargs):
-        return _Proc()
-
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(subprocess, "Popen", _TimeoutPopen)
     result = await runner.run("python --version", cwd)
     assert result.timed_out is True
 
@@ -190,19 +193,19 @@ async def test_sandbox_node_writes_run_log_on_approval(
 
         runner = SandboxRunner(settings)
 
-        class _Proc:
+        class _MockPopen:
             returncode = 0
 
-            async def communicate(self):
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def communicate(self, timeout=None):
                 return b"Python 3.13", b""
 
             def kill(self):
                 pass
 
-        async def fake_exec(*args, **kwargs):
-            return _Proc()
-
-        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+        monkeypatch.setattr(subprocess, "Popen", _MockPopen)
 
         register_context(
             task_id,

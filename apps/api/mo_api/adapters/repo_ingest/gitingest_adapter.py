@@ -55,7 +55,13 @@ def _parse_gitingest_content(raw: str | dict[str, str]) -> dict[str, str]:
 def _format_ingest_error(exc: BaseException, token: str | None = None) -> str:
     msg = str(exc).strip()
     if not msg:
-        msg = f"{type(exc).__name__}: repo ingest failed"
+        # 无消息异常（如 NotImplementedError()）— 保留类型名加建议
+        msg = (
+            f"{type(exc).__name__}（无详细消息）。"
+            "可能是底层依赖缺失（如 git 未安装）或网络不通。"
+            "请确认：1) git 已安装且在 PATH 中；2) 可以正常访问 GitHub；"
+            "3) DEEPSEEK_API_KEY 已配置（若模型调用需要）。"
+        )
     return _sanitize_error(msg, token)
 
 

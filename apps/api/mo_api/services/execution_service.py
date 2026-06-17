@@ -117,6 +117,18 @@ class ExecutionService:
         if task is None:
             raise TaskNotFoundError(task_id)
         permissions = task.permissions.model_dump()
+
+        # F-004: 从最新已批准计划中读取用户禁用的步骤
+        from ..storage.repositories import PlanRepository
+        from ..models.enums import PlanStepStatus
+
+        disabled_node_ids: list[str] = []
+        latest_plan = PlanRepository(session).get_latest_by_task(task_id)
+        if latest_plan:
+            for step in latest_plan.proposed_steps:
+                if step.status is PlanStepStatus.SKIPPED:
+                    disabled_node_ids.append(step.node_id)
+
         return {
             "task_id": task_id,
             "goal": task.goal,
@@ -125,6 +137,7 @@ class ExecutionService:
             "output_language": task.output_language.value,
             "template": task.template,
             "permissions": permissions,
+            "disabled_node_ids": disabled_node_ids,
             "repo_cards": [],
             "evidence_items": [],
             "ingested_repos": [],
@@ -174,7 +187,7 @@ class ExecutionService:
             node,
             NodeStatus.FAILED,
             error_message=message,
-            logs=[f"node {node} rejected by user"],
+            logs=[f"node {node} failed: {message[:200]}"],
         )
         with Session(get_engine()) as session:
             task_repo = TaskRepository(session)
@@ -327,20 +340,12 @@ class ExecutionService:
                 )
 
         except Exception as exc:
-            # 兜底：节点异常 → FAILED
+            # 兜底：节点异常 → 统一通过 _fail_task 发布 FAILED（F-010: 不重复发布）
             snapshot = await graph.aget_state(config)
             failed_node = (
                 snapshot.next[0] if snapshot.next else "unknown"
             )
-            error_msg = str(exc)[:500]
-            await self._publish_node(
-                task_id,
-                failed_node,
-                NodeStatus.FAILED,
-                error_message=error_msg,
-                logs=[f"node {failed_node} failed"],
-            )
-            await self._fail_task(task_id, failed_node, error_msg)
+            await self._fail_task(task_id, failed_node, str(exc)[:500])
 
     async def _run(self, task_id: str) -> None:
         try:

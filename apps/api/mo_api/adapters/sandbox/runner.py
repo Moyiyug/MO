@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import re
 import shlex
+import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -65,7 +67,11 @@ class SandboxRunner:
         return shlex.split(command, posix=False)
 
     async def run(self, command: str, cwd: Path) -> SandboxRunResult:
-        """在守卫通过后执行命令（create_subprocess_exec，非 shell）。"""
+        """在守卫通过后执行命令。
+
+        使用 subprocess.Popen + asyncio.to_thread 替代 create_subprocess_exec，
+        以兼容所有平台的 asyncio 事件循环。
+        """
         cmd = command.strip()
         try:
             self.guard(cmd, cwd)
@@ -86,23 +92,30 @@ class SandboxRunner:
                 guard_reason="empty argv",
             )
 
+        # 解析可执行文件完整路径，避免 Windows PATH 查找问题
+        resolved = shutil.which(args[0])
+        if resolved:
+            args[0] = resolved
+
+        timeout = self.settings.sandbox_timeout_seconds
         start = time.monotonic()
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            cwd=str(cwd),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        timed_out = False
-        try:
-            stdout_b, stderr_b = await asyncio.wait_for(
-                proc.communicate(),
-                timeout=self.settings.sandbox_timeout_seconds,
+
+        def _execute():
+            proc = subprocess.Popen(
+                args,
+                cwd=str(cwd),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
-        except asyncio.TimeoutError:
-            timed_out = True
-            proc.kill()
-            stdout_b, stderr_b = await proc.communicate()
+            try:
+                stdout_b, stderr_b = proc.communicate(timeout=timeout)
+                return proc, stdout_b, stderr_b, False
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                stdout_b, stderr_b = proc.communicate()
+                return proc, stdout_b, stderr_b, True
+
+        proc, stdout_b, stderr_b, timed_out = await asyncio.to_thread(_execute)
 
         duration = time.monotonic() - start
         stdout = (stdout_b or b"").decode("utf-8", errors="replace")
@@ -112,8 +125,8 @@ class SandboxRunner:
             command=cmd,
             cwd=str(cwd),
             exit_code=proc.returncode,
-            stdout_tail=stdout[-self._output_limit :],
-            stderr_tail=stderr[-self._output_limit :],
+            stdout_tail=stdout[-self._output_limit:],
+            stderr_tail=stderr[-self._output_limit:],
             duration_seconds=round(duration, 3),
             timed_out=timed_out,
         )

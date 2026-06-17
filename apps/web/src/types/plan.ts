@@ -23,6 +23,7 @@ export interface ClarifyingQuestion {
 
 export interface PlanStep {
   id: string
+  node_id: string  // F-002: matches WorkflowNode in execute graph
   title: string
   description: string
   tool: PlanStepTool

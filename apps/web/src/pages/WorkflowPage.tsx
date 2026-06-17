@@ -124,8 +124,8 @@ function WorkflowCanvas() {
             plan?.proposed_steps.every(
               (s) =>
                 s.status === 'skipped' ||
-                latestStatuses[s.id] === 'completed' ||
-                latestStatuses[s.id] === 'skipped',
+                latestStatuses[s.node_id] === 'completed' ||
+                latestStatuses[s.node_id] === 'skipped',
             ) ?? false
           if (
             (event.status === 'completed' || event.status === 'skipped') &&
@@ -165,15 +165,15 @@ function WorkflowCanvas() {
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
-      const step = plan?.proposed_steps.find((s) => s.id === node.id)
+      const step = plan?.proposed_steps.find((s) => s.node_id === node.id)
       if (step) openDrawer(step)
     },
     [plan, openDrawer],
   )
 
-  const selectedEvent = selectedStep ? getNodeEvent(selectedStep.id) : undefined
+  const selectedEvent = selectedStep ? getNodeEvent(selectedStep.node_id) : undefined
   const waitingStep = plan?.proposed_steps.find(
-    (s) => nodeStatuses[s.id] === 'waiting_user',
+    (s) => nodeStatuses[s.node_id] === 'waiting_user',
   )
   const isPlanWaitingUser =
     task && WAITING_USER_TASK_STATUSES.includes(task.status)
@@ -194,7 +194,7 @@ function WorkflowCanvas() {
     try {
       await approveStep.mutateAsync({
         taskId,
-        stepId: selectedStep.id,
+        stepId: selectedStep.node_id,
         approved,
       })
       toast.success(approved ? '步骤已批准' : '步骤已拒绝')
@@ -247,9 +247,9 @@ function WorkflowCanvas() {
               <p className="font-medium">执行暂停 — 等待步骤审批</p>
               <p className="mt-1 text-sm">
                 节点「{waitingStep.title}」需要您的审批才能继续。
-                {eventsByNode[waitingStep.id]?.next_action && (
+                {eventsByNode[waitingStep.node_id]?.next_action && (
                   <span className="mt-1 block">
-                    {eventsByNode[waitingStep.id].next_action}
+                    {eventsByNode[waitingStep.node_id].next_action}
                   </span>
                 )}
               </p>
@@ -317,8 +317,8 @@ function WorkflowCanvas() {
               {selectedStep && (
                 <div className="space-y-3 text-sm">
                   <p>{selectedStep.description}</p>
-                  {nodeStatuses[selectedStep.id] && (
-                    <NodeStatusBadge status={nodeStatuses[selectedStep.id]} />
+                  {nodeStatuses[selectedStep.node_id] && (
+                    <NodeStatusBadge status={nodeStatuses[selectedStep.node_id]} />
                   )}
                   <dl className="grid grid-cols-2 gap-2">
                     <dt className="text-muted-foreground">工具</dt>
@@ -382,7 +382,7 @@ function WorkflowCanvas() {
                       {selectedEvent.next_action}
                     </p>
                   )}
-                  {nodeStatuses[selectedStep.id] === 'waiting_user' && (
+                  {nodeStatuses[selectedStep.node_id] === 'waiting_user' && (
                     <DialogFooter className="gap-2 sm:justify-start">
                       <Button
                         size="sm"

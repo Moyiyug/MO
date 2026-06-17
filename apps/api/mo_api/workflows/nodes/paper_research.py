@@ -18,7 +18,7 @@ from ...models.evidence import EvidenceItem
 from ...models.reproducibility import PaperMaterial
 from ...storage import db
 from ...storage.repositories import RepoCardRepository
-from ..execute_context import get_context, publish_node_event
+from ..execute_context import get_context, maybe_skip_node, publish_node_event
 from ..state import MOState
 
 NODE_ID = "paper_research"
@@ -93,6 +93,9 @@ async def paper_research(state: MOState) -> MOState:
     allow_web = bool(permissions.get("allow_web_search", False))
     paper_urls = list(state.get("paper_urls") or [])
     repo_urls = list(state.get("repo_urls") or [])
+
+    if await maybe_skip_node(state, NODE_ID, ctx):
+        return {}
 
     await publish_node_event(
         ctx,

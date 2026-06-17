@@ -75,7 +75,14 @@ class TaskVectorStore:
                     metadatas.append({"locator": path, "source_uri": source_uri})
                     count += 1
             if ids:
-                collection.add(ids=ids, documents=documents, metadatas=metadatas)
+                # ChromaDB Rust 后端单批上限 5461；大仓库分批写入
+                _BATCH = 5000
+                for start in range(0, len(ids), _BATCH):
+                    collection.add(
+                        ids=ids[start:start + _BATCH],
+                        documents=documents[start:start + _BATCH],
+                        metadatas=metadatas[start:start + _BATCH],
+                    )
             return count
 
         return await asyncio.to_thread(_add)

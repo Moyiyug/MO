@@ -23,7 +23,7 @@ from ...models.evidence import EvidenceItem
 from ...models.reproducibility import ReproducibilityReport, ReproducibilityScore
 from ...storage import db
 from ...storage.repositories import RepoCardRepository, ReproducibilityRepository
-from ..execute_context import get_context, publish_node_event
+from ..execute_context import get_context, maybe_skip_node, publish_node_event
 from ..state import MOState
 
 NODE_ID = "reproducibility"
@@ -69,6 +69,9 @@ def _card_signals(card) -> str:
 async def reproducibility(state: MOState) -> MOState:
     task_id = state.get("task_id", "")
     ctx = get_context(task_id)
+
+    if await maybe_skip_node(state, NODE_ID, ctx):
+        return {}
 
     await publish_node_event(
         ctx,

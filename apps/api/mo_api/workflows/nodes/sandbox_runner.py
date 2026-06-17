@@ -14,7 +14,7 @@ from ...models.enums import EvidenceStrength, NodeStatus, SourceType
 from ...models.evidence import EvidenceItem
 from ...storage import db
 from ...storage.repositories import RepoCardRepository
-from ..execute_context import get_context, publish_node_event
+from ..execute_context import get_context, maybe_skip_node, publish_node_event
 from ..state import MOState
 
 NODE_ID = "sandbox_runner"
@@ -25,6 +25,9 @@ async def sandbox_runner(state: MOState) -> MOState:
     task_id = state.get("task_id", "")
     ctx = get_context(task_id)
     permissions = state.get("permissions") or {}
+
+    if await maybe_skip_node(state, NODE_ID, ctx):
+        return {}
 
     if not settings.sandbox_enabled or not permissions.get("allow_smoke_test"):
         await publish_node_event(

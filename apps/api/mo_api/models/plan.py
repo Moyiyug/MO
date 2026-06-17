@@ -28,6 +28,7 @@ class ClarifyingQuestion(BaseModel):
 
 class PlanStep(BaseModel):
     id: str
+    node_id: str  # 对应 ExecuteMode 图中 WorkflowNode 的节点 ID（F-002）
     title: str
     description: str
     tool: PlanStepTool

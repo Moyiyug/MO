@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+import traceback as _tb
+
 from langgraph.types import interrupt
+
+logger = logging.getLogger("mo_api.repo_ingest")
 
 from ...agents.repo_card import build_repo_card
 from ...models.enums import NodeStatus
@@ -10,7 +15,7 @@ from sqlmodel import Session
 
 from ...storage import db
 from ...storage.repositories import RepoCardRepository
-from ..execute_context import get_context, publish_node_event
+from ..execute_context import get_context, maybe_skip_node, publish_node_event
 from ..state import MOState
 
 NODE_ID = "repo_ingest"
@@ -20,6 +25,9 @@ async def repo_ingest(state: MOState) -> MOState:
     task_id = state.get("task_id", "")
     ctx = get_context(task_id)
     permissions = state.get("permissions") or {}
+
+    if await maybe_skip_node(state, NODE_ID, ctx):
+        return {}
 
     if not permissions.get("allow_repo_clone", True):
         decision = interrupt(
@@ -83,14 +91,21 @@ async def repo_ingest(state: MOState) -> MOState:
             repo_cards.append(card.model_dump(mode="json"))
             all_evidence_ids.extend(card.evidence_ids)
         except Exception as exc:
+            detail = f"{type(exc).__name__}: {exc}".strip()
+            if not detail or detail == f"{type(exc).__name__}:":
+                detail = f"{type(exc).__name__}（无详细消息）"
             errors.append(
-                {"node": NODE_ID, "repo": repo_url, "msg": str(exc)[:200]}
+                {"node": NODE_ID, "repo": repo_url, "msg": detail[:200]}
+            )
+            logger.warning(
+                "repo ingest failed for %s: %s\n%s",
+                repo_url, detail, _tb.format_exc(),
             )
             await publish_node_event(
                 ctx,
                 NODE_ID,
                 NodeStatus.RUNNING,
-                logs=[f"repo ingest failed for {repo_url}: {exc}"],
+                logs=[f"repo ingest failed for {repo_url}: {detail}"],
             )
 
     # 从 DB 重建 evidence_items（避免 state 累积重复）

@@ -5,7 +5,8 @@
     "report": "deepseek-reasoning",
     "summarize": "deepseek-flash",
     "classify": "deepseek-flash",
-    "vision": "kimi-vision"
+    "vision": "kimi-vision",
+    "embedding": "qwen-embedding-vision-plus"
   },
   "profiles": [
     {
@@ -59,6 +60,50 @@
         "long_context": true
       },
       "default_temperature": 0.2
+    },
+    {
+      "id": "qwen-embedding-vision-plus",
+      "provider": "dashscope",
+      "model_name": "tongyi-embedding-vision-plus-2026-03-06",
+      "api_key_env": "QWEN_API_KEY",
+      "base_url_env": "QWEN_BASE_URL",
+      "capabilities": {
+        "text": true,
+        "reasoning": false,
+        "vision": false,
+        "video": false,
+        "tool_calling": false,
+        "json_mode": false,
+        "long_context": false
+      },
+      "_meta": {
+        "type": "embedding",
+        "dimension": 1152,
+        "dimensions_range": [64, 128, 256, 512, 1024, 1152],
+        "description": "Qwen3 多模态向量模型 (Plus)，支持 30+ 语言，1K token / 文本"
+      }
+    },
+    {
+      "id": "qwen-embedding-vision-flash",
+      "provider": "dashscope",
+      "model_name": "tongyi-embedding-vision-flash",
+      "api_key_env": "QWEN_API_KEY",
+      "base_url_env": "QWEN_BASE_URL",
+      "capabilities": {
+        "text": true,
+        "reasoning": false,
+        "vision": false,
+        "video": false,
+        "tool_calling": false,
+        "json_mode": false,
+        "long_context": false
+      },
+      "_meta": {
+        "type": "embedding",
+        "dimension": 768,
+        "dimensions_range": [64, 128, 256, 512, 768],
+        "description": "Qwen3 多模态向量模型 (Flash)，成本优化版，1K token / 文本"
+      }
     }
   ]
 }

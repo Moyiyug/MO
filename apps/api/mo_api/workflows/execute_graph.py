@@ -15,6 +15,7 @@ from ..config import get_settings
 from .nodes.code_understanding import code_understanding
 from .nodes.comparison_builder import comparison_builder
 from .nodes.paper_research import paper_research
+from .nodes.report_writer import report_writer
 from .nodes.reproducibility import reproducibility
 from .nodes.repo_ingest import repo_ingest
 from .nodes.sandbox_runner import sandbox_runner
@@ -33,13 +34,15 @@ def build_execute_graph(checkpointer: Any) -> Any:
     graph.add_node("reproducibility", reproducibility)
     graph.add_node("sandbox_runner", sandbox_runner)
     graph.add_node("comparison_builder", comparison_builder)
+    graph.add_node("report_writer", report_writer)
     graph.add_edge(START, "repo_ingest")
     graph.add_edge("repo_ingest", "code_understanding")
     graph.add_edge("code_understanding", "paper_research")
     graph.add_edge("paper_research", "reproducibility")
     graph.add_edge("reproducibility", "sandbox_runner")
     graph.add_edge("sandbox_runner", "comparison_builder")
-    graph.add_edge("comparison_builder", END)
+    graph.add_edge("comparison_builder", "report_writer")
+    graph.add_edge("report_writer", END)
     return graph.compile(checkpointer=checkpointer)
 
 

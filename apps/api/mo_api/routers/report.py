@@ -33,12 +33,29 @@ async def get_report(
     service: ReportService = Depends(get_report_service),
     session: Session = Depends(get_session),
 ) -> Report:
+    """只读获取已缓存的报告。（F-013: GET 无副作用）"""
     _get_task_or_404(session, task_id)
     try:
         cached = service.get_cached_report(task_id)
-        if cached is not None:
-            service.advance_to_review_if_draft(task_id)
-            return cached
+    except ReportNotReadyError:
+        cached = None
+    if cached is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="报告尚未生成。请使用 POST /api/tasks/{task_id}/generate-report 生成。",
+        )
+    return cached
+
+
+@router.post("/{task_id}/generate-report", response_model=Report)
+async def generate_report(
+    task_id: str,
+    service: ReportService = Depends(get_report_service),
+    session: Session = Depends(get_session),
+) -> Report:
+    """显式触发报告生成。（F-013）"""
+    _get_task_or_404(session, task_id)
+    try:
         return await service.generate_async(task_id)
     except ReportNotReadyError as exc:
         raise HTTPException(
@@ -53,23 +70,19 @@ async def export_report(
     service: ReportService = Depends(get_report_service),
     session: Session = Depends(get_session),
 ) -> PlainTextResponse:
-    task = _get_task_or_404(session, task_id)
+    _get_task_or_404(session, task_id)
     try:
         cached = service.get_cached_report(task_id)
-        if cached is not None:
-            service.advance_to_review_if_draft(task_id)
-            report = cached
-        else:
-            report = await service.generate_async(task_id)
-    except ReportNotReadyError as exc:
+    except ReportNotReadyError:
+        cached = None
+    if cached is None:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
-
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="报告尚未生成。请先生成报告。",
+        )
     filename = f"mo-report-{task_id[:8]}.md"
     return PlainTextResponse(
-        content=report.markdown,
+        content=cached.markdown,
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

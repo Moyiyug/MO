@@ -110,6 +110,43 @@ def _detect_test_paths(content: dict[str, str]) -> list[str]:
     return sorted(set(tests))[:20]
 
 
+def _derive_test_commands(
+    content: dict[str, str], test_paths: list[str]
+) -> list[str]:
+    """从包清单推断可执行的测试命令（F-008）。
+
+    返回真实命令字符串（如 "npm test"、"python -m pytest"），而非文件路径。
+    """
+    commands: list[str] = []
+
+    # 检查 package.json（npm/Node.js 项目）
+    _, pkg_text = _find_content(content, "package.json")
+    if pkg_text:
+        try:
+            pkg = json.loads(pkg_text)
+            scripts = pkg.get("scripts") or {}
+            if "test" in scripts:
+                commands.append("npm test")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # 检查 Python 项目清单
+    _, py_text = _find_content(content, "pyproject.toml")
+    _, req_text = _find_content(content, "requirements.txt")
+    _, setup_text = _find_content(content, "setup.py")
+    if py_text or req_text or setup_text:
+        if test_paths:
+            commands.append("python -m pytest")
+        else:
+            commands.append("python -m pytest")
+
+    # 无清单但有测试路径：保守回退
+    if not commands and test_paths:
+        commands.append("python -m pytest")
+
+    return commands[:5]
+
+
 def _primary_language(content: dict[str, str]) -> str | None:
     counts: dict[str, int] = {}
     for path in content:
@@ -320,7 +357,7 @@ async def build_repo_card(
         project_type=project_type,
         dependencies=sorted(set(dependencies))[:100],
         entrypoints=entrypoints[:20],
-        test_commands=test_paths[:10],
+        test_commands=_derive_test_commands(content, test_paths),
         docs_paths=docs_paths,
         license=license_value,
         risks=risks[:20],

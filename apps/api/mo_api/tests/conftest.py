@@ -87,7 +87,7 @@ def mock_execute_dependencies(monkeypatch, request, tmp_path):
     module = request.node.module.__name__
     if module.endswith("test_repo_ingest_adapter") or module.endswith(
         "test_model_gateway"
-    ) or module.endswith("test_paperqa_adapter"):
+    ) or module.endswith("test_paperqa_adapter") or module.endswith("test_paperqa_real"):
         yield
         return
 
@@ -121,6 +121,10 @@ def mock_execute_dependencies(monkeypatch, request, tmp_path):
                     '"missing_info": []}'
                 )
             return '{"project_type":"library","entrypoints":["main.py"],"risks":[]}'
+
+    class _FakeProfileStore:
+        def has_api_key(self, profile) -> bool:
+            return True
 
     async def fake_ingest(self, repo_url: str, *, token: str | None = None):
         return RepoDigest(
@@ -204,6 +208,14 @@ def mock_execute_dependencies(monkeypatch, request, tmp_path):
     monkeypatch.setattr(
         "mo_api.services.report_service.get_model_gateway",
         lambda: _FakeGateway(),
+    )
+    monkeypatch.setattr(
+        "mo_api.adapters.model_gateway.gateway.get_model_gateway",
+        lambda: _FakeGateway(),
+    )
+    monkeypatch.setattr(
+        "mo_api.adapters.model_gateway.profiles.get_profile_store",
+        lambda: _FakeProfileStore(),
     )
     monkeypatch.setattr(
         "mo_api.storage.vector_store.get_settings",

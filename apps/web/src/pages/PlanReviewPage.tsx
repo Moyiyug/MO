@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -11,7 +11,7 @@ import {
   useSubmitClarifications,
   useTask,
 } from '@/api/tasks'
-import { useSelectRepoCandidates } from '@/api/repoDiscovery'
+import { useSelectRepoCandidates, useRepoCandidates } from '@/api/repoDiscovery'
 import { QueryState } from '@/components/common/QueryState'
 import { TaskStatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
@@ -53,6 +53,7 @@ export function PlanReviewPage() {
   const replan = useReplan()
   const submitClarifications = useSubmitClarifications()
   const selectCandidates = useSelectRepoCandidates()
+  const repoCandidatesQuery = useRepoCandidates(taskId)
 
   const {
     rubricWeights,
@@ -111,7 +112,8 @@ export function PlanReviewPage() {
 
   const rubricValid = isRubricValid(rubricWeights)
 
-  const candidates = plan?.repo_candidates ?? []
+  const candidates = repoCandidatesQuery.data?.candidates ?? plan?.repo_candidates ?? []
+  const discoveryNote = repoCandidatesQuery.data?.discovery_note ?? null
   const hasCandidates = candidates.length > 0
   const noRepoSelected = (task?.repo_urls?.length ?? 0) === 0
   const selectionValid =
@@ -349,7 +351,16 @@ export function PlanReviewPage() {
                     role="alert"
                   >
                     <AlertTriangle className="h-4 w-4" />
-                    尚未确认调研仓库，请勾选后点击“确认调研仓库”。
+                    尚未确认调研仓库，请勾选后点击"确认调研仓库"。
+                  </div>
+                )}
+                {discoveryNote && (
+                  <div
+                    className="flex items-center gap-2 rounded-md border border-blue-400 bg-blue-50 p-2 text-sm text-blue-800"
+                    role="status"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    {discoveryNote}
                   </div>
                 )}
                 {candidates.map((c) => {

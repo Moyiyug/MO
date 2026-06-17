@@ -32,6 +32,8 @@ export function buildStepGraph(
 
   const depth = new Map<string, number>()
   const byId = new Map(steps.map((s) => [s.id, s]))
+  // F-002: node_id 映射 — PlanStep.id → WorkflowNode
+  const nodeIdByStepId = new Map(steps.map((s) => [s.id, s.node_id]))
 
   function getDepth(id: string, visiting = new Set<string>()): number {
     if (depth.has(id)) return depth.get(id)!
@@ -60,14 +62,15 @@ export function buildStepGraph(
   const nodes: Node<StepNodeData>[] = []
   for (const [d, layerSteps] of layers) {
     layerSteps.forEach((step, i) => {
+      // F-002: use step.node_id as ReactFlow node id
       nodes.push({
-        id: step.id,
+        id: step.node_id,
         type: 'stepNode',
         position: { x: d * H_GAP, y: i * V_GAP },
         data: {
           step,
           displayStatus:
-            statusMap[step.id] ?? stepStatusToDisplayStatus(step),
+            statusMap[step.node_id] ?? stepStatusToDisplayStatus(step),
           label: step.title,
         },
       })
@@ -78,11 +81,12 @@ export function buildStepGraph(
   for (const step of steps) {
     for (const dep of step.depends_on) {
       if (byId.has(dep)) {
-        const targetStatus = statusMap[step.id]
+        const targetStatus = statusMap[step.node_id]
+        const sourceNodeId = nodeIdByStepId.get(dep) ?? dep
         edges.push({
           id: `${dep}->${step.id}`,
-          source: dep,
-          target: step.id,
+          source: sourceNodeId,
+          target: step.node_id,
           animated: targetStatus === 'running',
         })
       }

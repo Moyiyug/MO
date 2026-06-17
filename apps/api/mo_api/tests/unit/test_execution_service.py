@@ -260,3 +260,35 @@ async def test_waiting_user_can_be_approved_when_event_is_published(
         task = TaskRepository(session).get(task_id)
         assert task is not None
         assert task.status is TaskStatus.REPORT_DRAFT
+
+
+@pytest.mark.asyncio
+async def test_concurrent_start_only_creates_one_run(
+    engine, executor, mock_repo_ingest, mock_gateway, monkeypatch
+) -> None:
+    """两个并发 start() 只触发一次 _run，验证 _start_lock 序列化行为。"""
+    task_id = "exec-concurrent"
+    _seed_task(engine, task_id, allow_repo_clone=True)
+
+    run_count = 0
+
+    async def counting_run(tid):
+        nonlocal run_count
+        run_count += 1
+        # 保持任务足够长以便第二个 start 被锁阻塞
+        await asyncio.sleep(0.3)
+
+    monkeypatch.setattr(executor, "_run", counting_run)
+
+    # 同时发起两个 start()
+    statuses = await asyncio.gather(
+        executor.start(task_id),
+        executor.start(task_id),
+    )
+
+    assert all(s == TaskStatus.EXECUTING for s in statuses)
+    await asyncio.sleep(0.5)  # 等待 counting_run 完成
+    assert run_count == 1, (
+        f"预期 _run 只被调用 1 次，实际调用 {run_count} 次。"
+        f"_start_lock 应序列化并发 start()。"
+    )

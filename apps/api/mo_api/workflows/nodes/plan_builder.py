@@ -19,6 +19,7 @@ from ..state import MOState
 
 def _step(
     step_id: str,
+    node_id: str,
     title: str,
     description: str,
     tool: PlanStepTool,
@@ -29,6 +30,7 @@ def _step(
 ) -> PlanStep:
     return PlanStep(
         id=step_id,
+        node_id=node_id,
         title=title,
         description=description,
         tool=tool,
@@ -114,14 +116,15 @@ def build_plan_from_state(state: MOState) -> Plan:
     steps: list[PlanStep] = []
     prev_id: str | None = None
 
-    def add(step_id: str, **kwargs) -> None:
+    def add(step_id: str, node_id: str, **kwargs) -> None:
         nonlocal prev_id
         depends = [prev_id] if prev_id else []
-        steps.append(_step(step_id, depends_on=depends, **kwargs))
+        steps.append(_step(step_id, node_id, depends_on=depends, **kwargs))
         prev_id = step_id
 
     add(
         "step_repo_ingest",
+        node_id="repo_ingest",
         title="仓库调研",
         description="对选定的候选仓库使用 gitingest 提取 README、依赖、目录结构与关键文件摘要",
         tool=PlanStepTool.REPO_INGEST,
@@ -131,6 +134,7 @@ def build_plan_from_state(state: MOState) -> Plan:
     )
     add(
         "step_code_understanding",
+        node_id="code_understanding",
         title="代码理解",
         description="识别核心模块、安装路径、运行入口与测试命令",
         tool=PlanStepTool.CODE_UNDERSTANDING,
@@ -140,6 +144,7 @@ def build_plan_from_state(state: MOState) -> Plan:
     )
     add(
         "step_paper_research",
+        node_id="paper_research",
         title="论文与资料补充",
         description="基于用户提供的论文链接与 README 关联资料进行补充调研",
         tool=PlanStepTool.PAPER_RESEARCH,
@@ -149,6 +154,7 @@ def build_plan_from_state(state: MOState) -> Plan:
     )
     add(
         "step_repro_eval",
+        node_id="reproducibility",
         title="复现评估",
         description="评估安装清晰度、依赖风险、示例与文档质量（静态评估）",
         tool=PlanStepTool.REPRO_EVAL,
@@ -160,6 +166,7 @@ def build_plan_from_state(state: MOState) -> Plan:
     if repo_count > 1:
         add(
             "step_comparison",
+            node_id="comparison_builder",
             title="多仓库对比",
             description="按默认权重生成对比矩阵与场景化推荐",
             tool=PlanStepTool.COMPARISON,
@@ -171,6 +178,7 @@ def build_plan_from_state(state: MOState) -> Plan:
     if allow_smoke:
         add(
             "step_sandbox",
+            node_id="sandbox_runner",
             title="冒烟测试（可选）",
             description="在审批后于沙箱中执行白名单命令进行 smoke test",
             tool=PlanStepTool.SANDBOX_RUNNER,
@@ -180,16 +188,8 @@ def build_plan_from_state(state: MOState) -> Plan:
         )
 
     add(
-        "step_critic",
-        title="批判性审查",
-        description="检查证据链完整性、冲突与不确定结论",
-        tool=PlanStepTool.CRITIC_REVIEW,
-        risk_level=RiskLevel.LOW,
-        requires_approval=False,
-        expected_outputs=["review_notes"],
-    )
-    add(
         "step_report",
+        node_id="report_writer",
         title="报告生成",
         description="生成带 fact/inference/recommendation/pending 标签的结构化报告",
         tool=PlanStepTool.REPORT_WRITER,

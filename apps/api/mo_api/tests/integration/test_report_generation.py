@@ -67,6 +67,10 @@ async def _run_full_execute(client, task_id: str, engine) -> None:
 async def test_report_generation_and_export(client, created_task_id, engine) -> None:
     await _run_full_execute(client, created_task_id, engine)
 
+    # F-013: 显式生成报告（GET /report 已改为只读）
+    gen_resp = await client.post(f"/api/tasks/{created_task_id}/generate-report")
+    assert gen_resp.status_code == 200
+
     report_resp = await client.get(f"/api/tasks/{created_task_id}/report")
     assert report_resp.status_code == 200
     report = report_resp.json()
@@ -117,14 +121,18 @@ async def test_report_generation_and_export(client, created_task_id, engine) -> 
 
 @pytest.mark.asyncio
 async def test_report_not_ready_before_execute(client, created_task_id) -> None:
+    # F-013: GET /report 只读，无缓存返回 404
     resp = await client.get(f"/api/tasks/{created_task_id}/report")
-    assert resp.status_code == 409
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_report_cache_hit(client, created_task_id, engine) -> None:
     """生成后再次 GET 应从缓存返回相同 report id。"""
     await _run_full_execute(client, created_task_id, engine)
+
+    # F-013: 显式生成报告
+    await client.post(f"/api/tasks/{created_task_id}/generate-report")
 
     first = await client.get(f"/api/tasks/{created_task_id}/report")
     assert first.status_code == 200
@@ -139,8 +147,8 @@ async def test_report_cache_hit(client, created_task_id, engine) -> None:
 async def test_confirm_after_done_rejects(client, created_task_id, engine) -> None:
     """确认后再次 confirm 应返回 409。"""
     await _run_full_execute(client, created_task_id, engine)
-    # 先触发报告生成
-    await client.get(f"/api/tasks/{created_task_id}/report")
+    # F-013: 显式生成报告
+    await client.post(f"/api/tasks/{created_task_id}/generate-report")
     # 确认
     confirm = await client.post(
         f"/api/tasks/{created_task_id}/confirm-report"
@@ -159,7 +167,8 @@ async def test_regenerate_report_endpoint(client, created_task_id, engine) -> No
     """regenerate-report 端点应强制重新生成并返回新 report。"""
     await _run_full_execute(client, created_task_id, engine)
 
-    first = await client.get(f"/api/tasks/{created_task_id}/report")
+    # F-013: 显式生成报告
+    first = await client.post(f"/api/tasks/{created_task_id}/generate-report")
     assert first.status_code == 200
     first_id = first.json()["id"]
 

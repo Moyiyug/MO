@@ -271,10 +271,16 @@ class PlanService:
         task = self._get_task_or_404(task_id)
         current = task.status
 
+        # F-012: 禁止在执行过程中重规划（不存在取消执行机制）
+        if current is TaskStatus.EXECUTING:
+            raise InvalidTransitionError(
+                "cannot replan while execution is in progress; "
+                "wait for execution to complete or fail first"
+            )
+
         if current not in {
             TaskStatus.WAITING_USER_APPROVAL,
             TaskStatus.PLAN_APPROVED,
-            TaskStatus.EXECUTING,
             TaskStatus.FAILED,
             TaskStatus.REVIEW_REQUIRED,
             TaskStatus.REPORT_DRAFT,

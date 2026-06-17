@@ -27,7 +27,7 @@ from ...services.comparison_service import (
 )
 from ...storage import db
 from ...storage.repositories import ComparisonRepository, PlanRepository, RepoCardRepository
-from ..execute_context import get_context, publish_node_event
+from ..execute_context import get_context, maybe_skip_node, publish_node_event
 from ..state import MOState
 
 NODE_ID = "comparison_builder"
@@ -75,6 +75,9 @@ def _card_context(card: RepoCard, code_insights: list[dict]) -> str:
 async def comparison_builder(state: MOState) -> MOState:
     task_id = state.get("task_id", "")
     ctx = get_context(task_id)
+
+    if await maybe_skip_node(state, NODE_ID, ctx):
+        return {}
 
     with Session(db.get_engine()) as session:
         repo_cards = RepoCardRepository(session).list_by_task(task_id)

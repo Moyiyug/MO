@@ -78,7 +78,8 @@ class Settings(BaseSettings):
     # Sandbox（R-004，默认关闭）
     sandbox_enabled: bool = False
     sandbox_command_whitelist: str = (
-        "pytest,python -m pytest,python --version,pip --version"
+        "pytest,python -m pytest,python -m pytest .,python --version,pip --version,"
+        "npm test,node --version,npm --version"
     )
     sandbox_timeout_seconds: int = 120
     sandbox_workdir_base: str = "./runtime/repos"

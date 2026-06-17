@@ -91,6 +91,26 @@ async def execute_task(
 ) -> ExecuteResponse:
     if TaskRepository(session).get(task_id) is None:
         raise HTTPException(status_code=404, detail="task not found")
+
+    # F-005: 执行前检查模型能力与 API 密钥是否就绪
+    from ..services.preflight_service import PreflightService
+    from ..adapters.model_gateway.gateway import get_model_gateway
+    from ..adapters.model_gateway.profiles import get_profile_store
+
+    preflight = PreflightService(get_model_gateway(), get_profile_store())
+    preflight_errors = preflight.check_required_model_profiles()
+
+    # 同时检查 git 是否可用（repo_ingest 依赖 git clone）
+    git_error = await preflight.check_git_available()
+    if git_error:
+        preflight_errors.append(git_error)
+
+    if preflight_errors:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "preflight_failed", "errors": preflight_errors},
+        )
+
     try:
         task_status = await executor.start(task_id)
     except InvalidTransitionError as exc:

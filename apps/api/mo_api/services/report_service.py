@@ -323,17 +323,24 @@ class ReportService:
             lines.append(f"**模板：** {task.template}")
 
         # 用户输入的目标是确定性事实（来源 TaskTable）
-        bg_evidence = EvidenceItem(
-            id=uuid.uuid4().hex,
-            task_id=task.task_id,
-            source_type=SourceType.USER_CONFIRMATION,
-            source_uri=f"task:{task.task_id}",
-            locator="task.goal",
-            quote_or_summary=task.goal[:2000],
-            strength=EvidenceStrength.STRONG,
-            created_at=datetime.now(timezone.utc),
+        # F-014: 使用 find_or_create 防止重复生成证据
+        existing_bg = self.evidence_repo.find_by_locator(
+            task.task_id, f"task:{task.task_id}", "task.goal"
         )
-        self.evidence_repo.create(bg_evidence)
+        if existing_bg is not None:
+            bg_evidence = existing_bg
+        else:
+            bg_evidence = EvidenceItem(
+                id=uuid.uuid4().hex,
+                task_id=task.task_id,
+                source_type=SourceType.USER_CONFIRMATION,
+                source_uri=f"task:{task.task_id}",
+                locator="task.goal",
+                quote_or_summary=task.goal[:2000],
+                strength=EvidenceStrength.STRONG,
+                created_at=datetime.now(timezone.utc),
+            )
+            self.evidence_repo.create(bg_evidence)
         claims = [
             self._make_claim(
                 f"调研目标：{task.goal}",
@@ -382,17 +389,26 @@ class ReportService:
         lines: list[str] = []
         claims = []
         for b in boundaries:
-            ev = EvidenceItem(
-                id=uuid.uuid4().hex,
-                task_id=task.task_id,
-                source_type=SourceType.USER_CONFIRMATION,
-                source_uri=f"plan:{plan.id}" if plan else f"task:{task.task_id}",
-                locator="plan.confirmed_context",
-                quote_or_summary=b[:2000],
-                strength=EvidenceStrength.STRONG,
-                created_at=datetime.now(timezone.utc),
+            # F-014: 使用 find_or_create 防止重复生成证据
+            existing_ev = self.evidence_repo.find_by_locator(
+                task.task_id,
+                f"plan:{plan.id}" if plan else f"task:{task.task_id}",
+                "plan.confirmed_context",
             )
-            self.evidence_repo.create(ev)
+            if existing_ev is not None:
+                ev = existing_ev
+            else:
+                ev = EvidenceItem(
+                    id=uuid.uuid4().hex,
+                    task_id=task.task_id,
+                    source_type=SourceType.USER_CONFIRMATION,
+                    source_uri=f"plan:{plan.id}" if plan else f"task:{task.task_id}",
+                    locator="plan.confirmed_context",
+                    quote_or_summary=b[:2000],
+                    strength=EvidenceStrength.STRONG,
+                    created_at=datetime.now(timezone.utc),
+                )
+                self.evidence_repo.create(ev)
             claim = self._make_claim(b, ClaimLabel.FACT, [ev.id])
             claims.append(claim)
             lines.append(self._format_claim_line(claim))

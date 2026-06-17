@@ -9,12 +9,3 @@
 # 详细说明见 README.md 与 docs/MO_操作指南.md
 
 -r apps/api/requirements.txt
-
-
-cd /d D:\MyProject\MO
-apps\api\.venv\Scripts\activate.bat
-uvicorn mo_api.main:app --reload --port 8000 --app-dir apps/api
-
-
-cd /d D:\MyProject\MO\apps\web
-npm run dev

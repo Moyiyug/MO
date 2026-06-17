@@ -41,10 +41,10 @@ class _FakeSession:
 
 
 class _FakeDocs:
-    async def aadd(self, path, settings=None):
+    async def aadd(self, path, settings=None, *, embedding_model=None):
         return None
 
-    async def aquery(self, question, settings=None):
+    async def aquery(self, question, settings=None, *, embedding_model=None):
         return _FakeSession()
 
 
@@ -114,10 +114,10 @@ async def test_paperqa_adapter_sanitizes_errors(monkeypatch, tmp_path) -> None:
     pdf.write_text("demo", encoding="utf-8")
 
     class _BoomDocs:
-        async def aadd(self, path, settings=None):
+        async def aadd(self, path, settings=None, *, embedding_model=None):
             return None
 
-        async def aquery(self, question, settings=None):
+        async def aquery(self, question, settings=None, *, embedding_model=None):
             raise RuntimeError("api_key=secret123 token=ghp_abc")
 
     fake_paperqa = type(

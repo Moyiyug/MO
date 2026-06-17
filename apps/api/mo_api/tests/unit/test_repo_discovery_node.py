@@ -150,3 +150,36 @@ async def test_no_candidates_returns_note(stub_settings) -> None:
     )
     assert candidates == []
     assert note is not None
+
+
+async def test_rerank_falls_back_to_stars_when_llm_returns_bad_json(
+    stub_settings,
+) -> None:
+    """LLM 返回非法 JSON 时 _rerank 应回退到 stars 归一化排序。（F-015）"""
+    adapter = _FakeAdapter([
+        _candidate("popular", stars=1000),
+        _candidate("niche", stars=10),
+    ])
+
+    class _BadJsonGateway:
+        def select(self, **kwargs):
+            return _FakeProfile()
+
+        async def complete(self, profile, messages, **kwargs):
+            content = messages[0]["content"]
+            if "search queries" in content:
+                return '["test query"]'
+            # _rerank 收到非 JSON 文本 → 应触发 _stars_fallback
+            return "this is not valid json at all"
+
+    candidates, note = await node.discover_candidates(
+        "goal", [], adapter=adapter, gateway=_BadJsonGateway()
+    )
+
+    # 回退到 stars 排序：popular(1000) 排第一，niche(10) 排第二
+    assert len(candidates) == 2
+    assert candidates[0].repo_name == "popular"
+    assert candidates[1].repo_name == "niche"
+    # 回退时 relevance_reason 应包含 "stars 热度"
+    assert "stars 热度" in candidates[0].relevance_reason
+    assert note is None

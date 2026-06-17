@@ -6,6 +6,11 @@
 
 from __future__ import annotations
 
+import pytest
+
+from mo_api.adapters.repo_discovery.base import RepoDiscoveryAdapter
+from mo_api.models.repo_discovery import RepoCandidate
+
 
 async def _create(client, goal: str, repo_urls: list[str]) -> str:
     resp = await client.post(
@@ -112,3 +117,87 @@ async def test_select_too_many_rejected(client) -> None:
         },
     )
     assert resp.status_code == 422
+
+
+async def test_full_discovery_flow_select_and_approve(client, monkeypatch) -> None:
+    """完整"发现 + 选择"路径：GitHub 搜索返回候选 → 用户选择 → 批准成功。（F-015）"""
+    # 构造返回 2 个模拟候选的 adapter
+    fake_candidates = [
+        RepoCandidate(
+            repo_url="https://github.com/langchain-ai/langchain",
+            repo_name="langchain-ai/langchain",
+            description="Build context-aware reasoning applications",
+            stars=95000,
+            language="Python",
+            topics=["llm", "agents"],
+            relevance_score=0.0,
+            discovered_by="github_search",
+        ),
+        RepoCandidate(
+            repo_url="https://github.com/run-llama/llama_index",
+            repo_name="run-llama/llama_index",
+            description="Data framework for LLM applications",
+            stars=37000,
+            language="Python",
+            topics=["rag", "agents"],
+            relevance_score=0.0,
+            discovered_by="github_search",
+        ),
+    ]
+
+    class _NonEmptyAdapter(RepoDiscoveryAdapter):
+        async def search(self, queries, *, per_query=5, limit=15):
+            return list(fake_candidates)
+
+    monkeypatch.setattr(
+        "mo_api.workflows.nodes.repo_discovery.get_repo_discovery_adapter",
+        lambda: _NonEmptyAdapter(),
+    )
+
+    # 1. 创建任务（空 repo_urls）
+    task_id = await _create(client, "对比 LLM 应用框架", [])
+
+    # 2. 生成计划 → repo_discovery 节点用 mock adapter 返回 2 个候选
+    resp = await client.post(f"/api/tasks/{task_id}/plan")
+    assert resp.status_code == 200, resp.text
+
+    # 3. 回答澄清问题（空即可）
+    await client.post(
+        f"/api/tasks/{task_id}/clarifications",
+        json={"answers": [{"question_id": "comparison_focus", "answer": "生态与文档"}]},
+    )
+
+    # 4. GET repo-candidates → 应有 2 个候选
+    resp = await client.get(f"/api/tasks/{task_id}/repo-candidates")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["task_id"] == task_id
+    assert len(body["candidates"]) == 2
+    assert body["candidates"][0]["repo_name"] == "langchain-ai/langchain"
+    assert body["candidates"][1]["repo_name"] == "run-llama/llama_index"
+    # 初始状态：selected=False
+    assert body["candidates"][0]["selected"] is False
+
+    # 5. POST 选择第一个候选
+    resp = await client.post(
+        f"/api/tasks/{task_id}/repo-candidates",
+        json={"selected_repo_urls": ["https://github.com/langchain-ai/langchain"]},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["candidates"][0]["selected"] is True
+    assert body["candidates"][1]["selected"] is False
+
+    # 6. 验证 task.repo_urls 已更新
+    resp = await client.get(f"/api/tasks/{task_id}")
+    assert resp.status_code == 200
+    task = resp.json()
+    assert task["repo_urls"] == ["https://github.com/langchain-ai/langchain"]
+
+    # 7. 批准计划 → 成功
+    resp = await client.post(
+        f"/api/tasks/{task_id}/approve-plan",
+        json={"disabled_step_ids": []},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "PLAN_APPROVED"

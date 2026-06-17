@@ -21,7 +21,7 @@ from ...models.enums import (
     SourceType,
 )
 from ...models.evidence import EvidenceItem
-from ..execute_context import get_context, publish_node_event
+from ..execute_context import get_context, maybe_skip_node, publish_node_event
 from ..state import MOState
 
 NODE_ID = "code_understanding"
@@ -48,6 +48,9 @@ async def code_understanding(state: MOState) -> MOState:
     task_id = state.get("task_id", "")
     goal = state.get("goal", "")
     ctx = get_context(task_id)
+
+    if await maybe_skip_node(state, NODE_ID, ctx):
+        return {}
 
     await publish_node_event(
         ctx,

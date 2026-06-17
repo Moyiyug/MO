@@ -6,9 +6,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+# Windows: asyncio.create_subprocess_exec 需要 ProactorEventLoop
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, status
