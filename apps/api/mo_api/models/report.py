@@ -6,6 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from .enums import ClaimLabel
 from .evidence import ReportClaim
 
 # PRD F-011 规定的 13 段报告章节 key（顺序固定）
@@ -52,6 +53,40 @@ class ReportSection(BaseModel):
     claims: list[ReportClaim] = Field(default_factory=list)
     is_pending: bool = False
 
+    # Report v2 optional fields; frontend may ignore safely.
+    summary: str | None = None
+    evidence_ids: list[str] = Field(default_factory=list)
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class EvidenceAppendixGroup(BaseModel):
+    """证据附录分组。"""
+
+    key: str
+    title: str
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class KeyFinding(BaseModel):
+    """关键发现。"""
+
+    title: str
+    summary: str
+    label: ClaimLabel = ClaimLabel.INFERENCE
+    evidence_ids: list[str] = Field(default_factory=list)
+    requires_user_review: bool = False
+
+
+class ScenarioRecommendation(BaseModel):
+    """场景化推荐。"""
+
+    scenario: str
+    recommendation: str
+    rationale: str
+    label: ClaimLabel = ClaimLabel.RECOMMENDATION
+    evidence_ids: list[str] = Field(default_factory=list)
+    requires_user_review: bool = True
+
 
 class Report(BaseModel):
     """完整调研报告（PRD F-011）。"""
@@ -62,3 +97,10 @@ class Report(BaseModel):
     pending_warnings: list[str] = Field(default_factory=list)
     generated_at: datetime
     markdown: str
+
+    # Report v2 optional fields.
+    executive_summary: str | None = None
+    key_findings: list[KeyFinding] = Field(default_factory=list)
+    recommendation_summary: list[ScenarioRecommendation] = Field(default_factory=list)
+    evidence_appendix_groups: list[EvidenceAppendixGroup] = Field(default_factory=list)
+    report_version: str = "v2"

@@ -86,8 +86,8 @@ async def test_report_generation_and_export(client, created_task_id, engine) -> 
 
     assert len(report["pending_warnings"]) >= 1
     pending_sections = [s for s in report["sections"] if s["is_pending"]]
-    # M9 后 reproducibility 段已接入真实数据，pending 段减少
-    assert len(pending_sections) >= 2
+    # v2: recommendation 不再固定 pending（基于对比矩阵生成），pending 段减少
+    assert len(pending_sections) >= 1
 
     repro_section = next(s for s in report["sections"] if s["key"] == "reproducibility")
     assert repro_section["is_pending"] is False

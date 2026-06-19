@@ -15,6 +15,33 @@ export interface ReportSection {
   markdown: string
   claims: ReportClaim[]
   is_pending?: boolean
+  // Report v2 optional fields
+  summary?: string
+  evidence_ids?: string[]
+  metadata?: Record<string, unknown>
+}
+
+export interface KeyFinding {
+  title: string
+  summary: string
+  label: ClaimLabel
+  evidence_ids: string[]
+  requires_user_review: boolean
+}
+
+export interface ScenarioRecommendation {
+  scenario: string
+  recommendation: string
+  rationale: string
+  label: ClaimLabel
+  evidence_ids: string[]
+  requires_user_review: boolean
+}
+
+export interface EvidenceAppendixGroup {
+  key: string
+  title: string
+  evidence_ids: string[]
 }
 
 export interface ReportResponse {
@@ -24,4 +51,10 @@ export interface ReportResponse {
   pending_warnings: string[]
   generated_at: string
   markdown: string
+  // Report v2 optional fields
+  executive_summary?: string
+  key_findings?: KeyFinding[]
+  recommendation_summary?: ScenarioRecommendation[]
+  evidence_appendix_groups?: EvidenceAppendixGroup[]
+  report_version?: string
 }
