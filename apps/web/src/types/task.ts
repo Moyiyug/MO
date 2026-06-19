@@ -36,6 +36,18 @@ export interface TaskCreateResponse {
   status: TaskStatus
 }
 
+export interface TaskPageResponse {
+  items: TaskResponse[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface TaskBulkDeleteResponse {
+  deleted_task_ids: string[]
+  skipped_task_ids: string[]
+}
+
 export const DEFAULT_PERMISSIONS: TaskPermissions = {
   allow_web_search: false,
   allow_repo_clone: true,

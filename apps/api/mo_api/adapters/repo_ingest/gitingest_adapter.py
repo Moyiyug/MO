@@ -102,6 +102,13 @@ class GitingestAdapter(RepoIngestAdapter):
         if effective_token is None:
             effective_token = os.environ.get("GITHUB_TOKEN", "").strip() or None
 
+        # BUG-009: Windows schannel 与代理冲突 → 强制 git 用 OpenSSL
+        # BUG-011: LFS 仓库 smudge 失败 → 跳过 LFS 文件
+        _prev_ssl = os.environ.get("GIT_SSL_BACKEND")
+        _prev_lfs = os.environ.get("GIT_LFS_SKIP_SMUDGE")
+        os.environ["GIT_SSL_BACKEND"] = "openssl"
+        os.environ["GIT_LFS_SKIP_SMUDGE"] = "1"
+
         try:
             from gitingest import ingest_async
         except ImportError as exc:
@@ -123,6 +130,16 @@ class GitingestAdapter(RepoIngestAdapter):
             raise RepoIngestError(
                 _format_ingest_error(exc, effective_token)
             ) from exc
+        finally:
+            # 恢复环境变量
+            if _prev_ssl is None:
+                os.environ.pop("GIT_SSL_BACKEND", None)
+            else:
+                os.environ["GIT_SSL_BACKEND"] = _prev_ssl
+            if _prev_lfs is None:
+                os.environ.pop("GIT_LFS_SKIP_SMUDGE", None)
+            else:
+                os.environ["GIT_LFS_SKIP_SMUDGE"] = _prev_lfs
 
         content = _parse_gitingest_content(raw_content)
         if not content:

@@ -78,11 +78,34 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+    background:
+      linear-gradient(180deg, color-mix(in oklch, var(--background) 92%, oklch(0.95 0.03 250) 8%) 0%, var(--background) 30rem),
+      repeating-linear-gradient(90deg, transparent 0 31px, oklch(0.94 0.01 250 / 35%) 31px 32px);
     margin: 0;
     min-height: 100svh;
   }
 
   #root {
     min-height: 100svh;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: oklch(0.88 0.06 230 / 60%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }

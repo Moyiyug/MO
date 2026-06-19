@@ -6,15 +6,21 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from ..models.task import (
     TaskCreateRequest,
     TaskCreateResponse,
+    TaskBulkDeleteResponse,
+    TaskPageResponse,
     TaskResponse,
 )
-from ..services.task_service import TaskNotFoundError, TaskService
+from ..services.task_service import (
+    TaskDeleteConflictError,
+    TaskNotFoundError,
+    TaskService,
+)
 from ..storage.db import get_session
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -42,6 +48,23 @@ def list_tasks(
     service: TaskService = Depends(get_task_service),
 ) -> list[TaskResponse]:
     return service.list_tasks()
+
+
+@router.get("/page", response_model=TaskPageResponse)
+def page_tasks(
+    limit: int = Query(default=10, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    service: TaskService = Depends(get_task_service),
+) -> TaskPageResponse:
+    return service.page_tasks(limit=limit, offset=offset)
+
+
+@router.delete("", response_model=TaskBulkDeleteResponse)
+def delete_all_tasks(
+    service: TaskService = Depends(get_task_service),
+) -> TaskBulkDeleteResponse:
+    """删除所有可删除历史任务；EXECUTING 任务会跳过（F-013）。"""
+    return service.delete_all_deletable_tasks()
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
@@ -76,3 +99,23 @@ def rerun_task(
             detail="task not found",
         ) from exc
     return TaskCreateResponse(task_id=task.task_id, status=task.status)
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(
+    task_id: str,
+    service: TaskService = Depends(get_task_service),
+) -> None:
+    """删除历史任务及本地 task 级存储（F-013）。"""
+    try:
+        service.delete_task(task_id)
+    except TaskNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="task not found",
+        ) from exc
+    except TaskDeleteConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="cannot delete executing task",
+        ) from exc

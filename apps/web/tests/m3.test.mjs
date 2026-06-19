@@ -13,7 +13,7 @@ test('repo URL validation mirrors the M3 frontend boundary', async () => {
   assert.equal(isValidRepoUrl('https://github.com/owner/repo'), true)
   assert.equal(isValidRepoUrl('http://github.com/owner/repo'), false)
   assert.equal(isValidRepoUrl('https://example.com/owner/repo'), false)
-  assert.equal(validateRepoUrlList([]), '至少填写 1 个仓库 URL')
+  assert.equal(validateRepoUrlList([]), null)
   assert.equal(
     validateRepoUrlList([
       'https://github.com/o/r1',
@@ -49,6 +49,7 @@ test('workflow graph respects backend skipped step status', async () => {
   )
   const skippedStep = {
     id: 'step_report',
+    node_id: 'report_writer',
     title: '报告生成',
     description: '生成报告',
     tool: 'report_writer',
@@ -59,7 +60,7 @@ test('workflow graph respects backend skipped step status', async () => {
     user_editable: true,
     status: 'skipped',
   }
-  const pendingStep = { ...skippedStep, id: 'step_repo', status: 'pending' }
+  const pendingStep = { ...skippedStep, id: 'step_repo', node_id: 'repo_ingest', status: 'pending' }
 
   assert.equal(stepStatusToDisplayStatus(skippedStep), 'skipped')
   assert.equal(stepStatusToDisplayStatus(pendingStep), 'pending')
@@ -76,6 +77,8 @@ test('report route stays within M3 empty-state boundary', async () => {
   )
 
   assert.equal(appSource.includes('ReportPreviewDemo'), false)
+  assert.match(appSource, /report\/full/)
+  assert.match(appSource, /report\/sections\/:sectionKey/)
   assert.equal(reportSource.includes('仓库 README 存在安装说明'), false)
   assert.equal(reportSource.includes('入口可能在'), false)
 })

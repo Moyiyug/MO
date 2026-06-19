@@ -1,8 +1,13 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import * as Collapsible from '@radix-ui/react-collapsible'
+import { ChevronDown, History, PlayCircle, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useCreateTask, useGeneratePlan } from '@/api/tasks'
+import { StatusGuide } from '@/components/common/StatusGuide'
+import { PageLayout, PrimaryWorkArea } from '@/components/common/InfoHierarchy'
+import { PageCommandBar } from '@/components/common/PageCommandBar'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -20,8 +25,15 @@ import {
   parseRepoUrls,
   validateRepoUrlList,
 } from '@/lib/repoValidation'
+import { PAGE_GUIDE_COPY, CTA_COPY } from '@/lib/uiCopy'
 
-/** P-001 TaskCreate */
+const GOAL_EXAMPLES = [
+  '对比 LangChain 与 LlamaIndex 的工程成熟度与可复现性',
+  '调研主流 RAG 框架在私有知识库场景中的选型建议',
+  '分析一个论文仓库的复现风险、依赖边界和下一步实验计划',
+]
+
+/** P-001 TaskCreate — 创建调研任务 */
 export function TaskCreatePage() {
   const navigate = useNavigate()
   const createTask = useCreateTask()
@@ -79,124 +91,205 @@ export function TaskCreatePage() {
   }
 
   const isSubmitting = createTask.isPending || generatePlan.isPending
+  const guide = PAGE_GUIDE_COPY.taskCreate
+  const requestSubmit = () => {
+    const form = document.getElementById('task-create-form') as HTMLFormElement | null
+    form?.requestSubmit()
+  }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/history">项目历史</Link>
-        </Button>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>创建调研任务</CardTitle>
-          <CardDescription>
-            填写研究目标即可。仓库可留空，由 MO 自动发现热门相关仓库；提交后进入 PlanMode 生成计划（P-001 / F-015）。
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="goal">研究目标</Label>
-              <Textarea
-                id="goal"
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                placeholder="例如：对比两个 RL 框架的可复现性与工程成熟度"
-                rows={3}
-                required
-              />
-            </div>
+    <div className="mx-auto max-w-6xl space-y-6 pt-8 lg:pt-12">
+      <StatusGuide
+        title={guide.title}
+        whatNow={guide.whatNow}
+        blockReason={formError ?? undefined}
+        primaryAction={
+          !formError
+            ? { label: guide.primaryAction, onClick: requestSubmit }
+            : undefined
+        }
+      />
 
-            <div className="space-y-2">
-              <Label htmlFor="repos">
-                仓库 URL（可选，0–5 个，每行一个）
-              </Label>
-              <Textarea
-                id="repos"
-                value={repoText}
-                onChange={(e) => setRepoText(e.target.value)}
-                placeholder="https://github.com/owner/repo"
-                rows={4}
-              />
-              <p className="text-xs text-muted-foreground">
-                留空则由 MO 根据研究目标自动发现热门相关仓库，你将在计划审阅页选择调研对象。
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="papers">论文/文档 URL（可选）</Label>
-              <Textarea
-                id="papers"
-                value={paperText}
-                onChange={(e) => setPaperText(e.target.value)}
-                placeholder="每行一个 URL"
-                rows={2}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="template">报告模板（可选）</Label>
-              <Input
-                id="template"
-                value={template}
-                onChange={(e) => setTemplate(e.target.value)}
-                placeholder="default"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="lang">输出语言</Label>
-              <select
-                id="lang"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                value={outputLanguage}
-                onChange={(e) =>
-                  setOutputLanguage(e.target.value as OutputLanguage)
-                }
-              >
-                <option value="zh">中文</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-
-            <fieldset className="space-y-3 rounded-lg border p-4">
-              <legend className="px-1 text-sm font-medium">权限开关</legend>
-              <p className="text-xs text-muted-foreground">
-                默认保守：联网调研、冒烟测试、依赖安装均为关闭。
-              </p>
-              {(
-                [
-                  ['allow_web_search', '允许联网调研'],
-                  ['allow_repo_clone', '允许克隆仓库'],
-                  ['allow_smoke_test', '允许冒烟测试'],
-                  ['allow_dependency_install', '允许安装依赖'],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={permissions[key]}
-                    onChange={() => togglePermission(key)}
-                    className="h-4 w-4 rounded border-input"
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <PageLayout className="min-w-0">
+          <PrimaryWorkArea>
+            <Card className="overflow-hidden border-blue-100/80 shadow-xl shadow-slate-900/10">
+            <CardHeader className="border-b bg-gradient-to-r from-blue-50 via-white to-emerald-50">
+              <div className="flex items-start gap-3">
+                <div className="rounded-md bg-blue-600 p-2 text-white">
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                </div>
+                <div>
+                  <CardTitle>你想调研什么？</CardTitle>
+                  <CardDescription className="mt-1">
+                    先写研究目标。仓库可以留空，MO 会在计划阶段推荐候选仓库，执行前仍需要你确认。
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <form id="task-create-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="goal">研究目标</Label>
+                  <Textarea
+                    id="goal"
+                    value={goal}
+                    onChange={(e) => setGoal(e.target.value)}
+                    placeholder="例如：对比两个 RL 框架的可复现性与工程成熟度"
+                    rows={4}
+                    required
+                    className="text-base"
                   />
-                  {label}
-                </label>
-              ))}
-            </fieldset>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {GOAL_EXAMPLES.map((example) => (
+                      <button
+                        key={example}
+                        type="button"
+                        onClick={() => setGoal(example)}
+                        className="rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-blue-300 hover:text-blue-700"
+                      >
+                        {example}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {formError && (
-              <p className="text-sm text-destructive" role="alert">
-                {formError}
-              </p>
-            )}
+                <div className="space-y-2">
+                  <Label htmlFor="repos">
+                    仓库 URL（可选，0-5 个，每行一个）
+                  </Label>
+                  <Textarea
+                    id="repos"
+                    value={repoText}
+                    onChange={(e) => setRepoText(e.target.value)}
+                    placeholder="https://github.com/owner/repo"
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {guide.repoUrlHelp}
+                  </p>
+                </div>
 
-            <Button type="submit" disabled={isSubmitting} className="w-full">
-              {isSubmitting ? '提交中…' : '创建任务并生成计划'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+                <div className="space-y-2">
+                  <Label htmlFor="papers">论文/文档 URL（可选）</Label>
+                  <Textarea
+                    id="papers"
+                    value={paperText}
+                    onChange={(e) => setPaperText(e.target.value)}
+                    placeholder="每行一个 URL"
+                    rows={2}
+                  />
+                </div>
+
+                <Collapsible.Root className="rounded-lg border bg-muted/25">
+                  <Collapsible.Trigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="flex w-full justify-between px-4"
+                    >
+                      高级设置
+                      <ChevronDown className="h-4 w-4" aria-hidden />
+                    </Button>
+                  </Collapsible.Trigger>
+                  <Collapsible.Content className="border-t p-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="template-adv" className="text-xs">报告模板</Label>
+                        <Input
+                          id="template-adv"
+                          value={template}
+                          onChange={(e) => setTemplate(e.target.value)}
+                          placeholder="default"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="lang-adv" className="text-xs">输出语言</Label>
+                        <select
+                          id="lang-adv"
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                          value={outputLanguage}
+                          onChange={(e) =>
+                            setOutputLanguage(e.target.value as OutputLanguage)
+                          }
+                        >
+                          <option value="zh">中文</option>
+                          <option value="en">English</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 border-t pt-4">
+                      <p className="mb-3 text-xs text-muted-foreground">
+                        默认保守：联网调研、冒烟测试、依赖安装均为关闭。高风险操作后续仍会单独审批。
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {(
+                          [
+                            ['allow_web_search', '允许联网调研'],
+                            ['allow_repo_clone', '允许克隆仓库'],
+                            ['allow_smoke_test', '允许冒烟测试'],
+                            ['allow_dependency_install', '允许安装依赖'],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <label key={key} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={permissions[key]}
+                              onChange={() => togglePermission(key)}
+                              className="h-4 w-4 rounded border-input"
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </Collapsible.Content>
+                </Collapsible.Root>
+              </form>
+
+              <PageCommandBar
+                position="inline"
+                className="mt-6 border-blue-100 bg-blue-50/60 shadow-none"
+                title="准备好后开始规划"
+                description="提交后只生成计划，执行调研仍需要你在计划页批准。"
+                primary={{
+                  label: isSubmitting ? '提交中…' : guide.primaryAction,
+                  onClick: requestSubmit,
+                  disabled: isSubmitting,
+                  icon: <PlayCircle className="h-4 w-4" aria-hidden />,
+                }}
+                secondary={[
+                  { label: '加载示例', href: '/history', icon: <Sparkles className="h-4 w-4" aria-hidden /> },
+                  { label: CTA_COPY.backToHistory, href: '/history', icon: <History className="h-4 w-4" aria-hidden /> },
+                ]}
+              />
+            </CardContent>
+          </Card>
+        </PrimaryWorkArea>
+      </PageLayout>
+
+        <aside className="space-y-3 lg:pt-8">
+          {[
+            ['1', '创建任务后进入调研计划，不会直接执行仓库代码'],
+            ['2', '仓库候选会在计划审阅页让你选择确认'],
+            ['3', '克隆、测试、依赖安装等高风险动作会再次审批'],
+          ].map(([step, text]) => (
+            <div key={step} className="rounded-lg border bg-card/78 p-3 text-sm shadow-sm">
+              <div className="mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                {step}
+              </div>
+              <p className="text-muted-foreground">{text}</p>
+            </div>
+          ))}
+        </aside>
+      </div>
+
+      {formError && (
+        <p className="text-sm text-destructive" role="alert">
+          {formError}
+        </p>
+      )}
     </div>
   )
 }

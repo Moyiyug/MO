@@ -1,8 +1,14 @@
 import type { ReactNode } from 'react'
-import { AlertCircle, Inbox, Loader2 } from 'lucide-react'
+import { AlertCircle, Inbox, Loader2, PauseCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { MOError } from '@/api/client'
+
+interface EmptyAction {
+  label: string
+  onClick?: () => void
+  href?: string
+}
 
 interface QueryStateProps {
   isLoading?: boolean
@@ -11,6 +17,13 @@ interface QueryStateProps {
   isEmpty?: boolean
   emptyTitle?: string
   emptyDescription?: string
+  /** 空状态下的操作按钮 */
+  emptyAction?: EmptyAction
+  /** 页面数据已加载但被逻辑阻塞（如 waiting_user 需审批） */
+  isBlocked?: boolean
+  blockedTitle?: string
+  blockedDescription?: string
+  blockedAction?: { label: string; onClick: () => void }
   onRetry?: () => void
   children: ReactNode
 }
@@ -35,6 +48,11 @@ export function QueryState({
   isEmpty,
   emptyTitle = '暂无数据',
   emptyDescription,
+  emptyAction,
+  isBlocked,
+  blockedTitle = '等待确认',
+  blockedDescription,
+  blockedAction,
   onRetry,
   children,
 }: QueryStateProps) {
@@ -75,6 +93,39 @@ export function QueryState({
         <p className="font-medium text-foreground">{emptyTitle}</p>
         {emptyDescription && (
           <p className="max-w-md text-center text-sm">{emptyDescription}</p>
+        )}
+        {emptyAction && (
+          emptyAction.href ? (
+            <Button variant="outline" size="sm" asChild>
+              <a href={emptyAction.href}>{emptyAction.label}</a>
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={emptyAction.onClick}>
+              {emptyAction.label}
+            </Button>
+          )
+        )}
+      </div>
+    )
+  }
+
+  if (isBlocked) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center gap-3 py-16"
+        role="alert"
+      >
+        <PauseCircle className="h-8 w-8 text-amber-500" aria-hidden />
+        <p className="font-medium text-amber-900">{blockedTitle}</p>
+        {blockedDescription && (
+          <p className="max-w-md text-center text-sm text-amber-700">
+            {blockedDescription}
+          </p>
+        )}
+        {blockedAction && (
+          <Button size="sm" onClick={blockedAction.onClick}>
+            {blockedAction.label}
+          </Button>
         )}
       </div>
     )

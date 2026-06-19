@@ -12,6 +12,7 @@ test('workflow graph uses backend SSE status map as display status', async () =>
   const steps = [
     {
       id: 'step_repo',
+      node_id: 'repo_ingest',
       title: 'Repo ingest',
       description: 'Inspect repo',
       tool: 'repo_ingest',
@@ -24,6 +25,7 @@ test('workflow graph uses backend SSE status map as display status', async () =>
     },
     {
       id: 'step_report',
+      node_id: 'report_writer',
       title: 'Report',
       description: 'Write report',
       tool: 'report_writer',
@@ -37,8 +39,8 @@ test('workflow graph uses backend SSE status map as display status', async () =>
   ]
 
   const graph = buildStepGraph(steps, {
-    step_repo: 'completed',
-    step_report: 'waiting_user',
+    repo_ingest: 'completed',
+    report_writer: 'waiting_user',
   })
 
   assert.equal(graph.nodes[0].data.displayStatus, 'completed')
@@ -80,9 +82,14 @@ test('WorkflowPage exposes M4 evidence details and guarded SSE cleanup', async (
     new URL('../src/pages/WorkflowPage.tsx', import.meta.url),
     'utf8',
   )
+  const evidenceSummarySource = await readFile(
+    new URL('../src/components/common/EvidenceSummary.tsx', import.meta.url),
+    'utf8',
+  )
 
-  assert.match(source, /证据 ID/)
-  assert.match(source, /暂无证据 ID/)
+  assert.match(source, /EvidenceSummary/)
+  assert.match(evidenceSummarySource, /source_uri/)
+  assert.match(evidenceSummarySource, /quote_or_summary/)
   assert.match(source, /let disposed = false/)
   assert.match(source, /clearReconnectTimer/)
   assert.match(source, /event\.status === 'skipped'/)

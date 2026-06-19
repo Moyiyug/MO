@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import {
   Background,
   Controls,
@@ -18,6 +18,16 @@ import {
   TaskStatusBadge,
 } from '@/components/common/StatusBadge'
 import { QueryState } from '@/components/common/QueryState'
+import { StatusGuide } from '@/components/common/StatusGuide'
+import {
+  PageLayout,
+  PrimaryWorkArea,
+  SupportingPanel,
+  SecondaryNavigation,
+} from '@/components/common/InfoHierarchy'
+import { SupportingDrawer } from '@/components/common/SupportingDrawer'
+import { EvidenceSummary } from '@/components/common/EvidenceSummary'
+import { PageCommandBar } from '@/components/common/PageCommandBar'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -26,18 +36,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { buildStepGraph } from '@/features/workflow/buildGraph'
 import { StepNode } from '@/features/workflow/StepNode'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { WAITING_USER_TASK_STATUSES } from '@/types/enums'
-import { cn } from '@/lib/utils'
+import {
+  PAGE_GUIDE_COPY,
+  CTA_COPY,
+  NODE_TYPE_COPY,
+  RISK_LEVEL_COPY,
+} from '@/lib/uiCopy'
 
 const nodeTypes = { stepNode: StepNode }
 
@@ -49,7 +57,7 @@ const EXECUTION_STATUSES = new Set([
   'FAILED',
 ])
 
-/** P-003 Workflow — SSE 实时节点图（F-010） */
+/** P-003 Workflow — SSE 实时节点图 */
 function WorkflowCanvas() {
   const { taskId } = useParams<{ taskId: string }>()
   const { data: plan, isLoading, isError, error, refetch } = usePlan(taskId)
@@ -62,7 +70,6 @@ function WorkflowCanvas() {
     drawerOpen,
     selectedStep,
     nodeStatuses,
-    eventsByNode,
     lastSeq,
     openDrawer,
     closeDrawer,
@@ -204,6 +211,18 @@ function WorkflowCanvas() {
     }
   }
 
+  // ── StatusGuide 推导 ───────────────────────────────────────
+  const guide = PAGE_GUIDE_COPY.workflow
+  let blockReason: string | undefined
+  if (isPlanWaitingUser) {
+    blockReason = '计划阶段尚未完成，请返回计划审阅页完成澄清或批准。'
+  } else if (waitingStep) {
+    blockReason = `节点「${waitingStep.title}」需要你的审批才能继续。`
+  }
+
+  const nodeTypeCopy = selectedStep ? NODE_TYPE_COPY[selectedStep.tool] : undefined
+  const riskCopy = selectedStep ? RISK_LEVEL_COPY[selectedStep.risk_level] : undefined
+
   return (
     <QueryState
       isLoading={isLoading}
@@ -213,198 +232,190 @@ function WorkflowCanvas() {
       isEmpty={!plan || plan.proposed_steps.length === 0}
       emptyTitle="暂无工作流步骤"
       emptyDescription="请先完成计划审阅并批准计划。"
+      emptyAction={{ label: '返回计划审阅', href: `/tasks/${taskId}/plan` }}
     >
       {plan && task && (
-        <div className="space-y-4">
-          {isPlanWaitingUser && (
-            <div
-              className={cn(
-                'rounded-lg border-2 border-amber-500 bg-amber-50 p-4 text-amber-900 ring-2 ring-amber-400',
-              )}
-              role="alert"
-            >
-              <p className="font-medium">计划阶段暂停 — 等待用户操作</p>
-              <p className="mt-1 text-sm">
-                请返回{' '}
-                <Link
-                  to={`/tasks/${taskId}/plan`}
-                  className="font-medium underline"
-                >
-                  计划审阅
-                </Link>{' '}
-                完成澄清或批准。
-              </p>
-            </div>
-          )}
+        <div className="space-y-6 max-w-7xl mx-auto">
+          <StatusGuide
+            title={guide.title}
+            whatNow={guide.whatNow}
+            blockReason={blockReason}
+            primaryAction={
+              isPlanWaitingUser
+                ? { label: '返回计划审阅', href: `/tasks/${taskId}/plan` }
+                : waitingStep
+                  ? {
+                      label: guide.primaryAction,
+                      onClick: () => waitingStep && openDrawer(waitingStep),
+                    }
+                  : task.status === 'PLAN_APPROVED'
+                    ? { label: '开始执行', onClick: handleStart }
+                    : undefined
+            }
+            statusBadge={<TaskStatusBadge status={task.status} />}
+          />
 
-          {waitingStep && (
-            <div
-              className={cn(
-                'rounded-lg border-2 border-amber-500 bg-amber-50 p-4 text-amber-900 ring-2 ring-amber-400',
-              )}
-              role="alert"
-            >
-              <p className="font-medium">执行暂停 — 等待步骤审批</p>
-              <p className="mt-1 text-sm">
-                节点「{waitingStep.title}」需要您的审批才能继续。
-                {eventsByNode[waitingStep.node_id]?.next_action && (
-                  <span className="mt-1 block">
-                    {eventsByNode[waitingStep.node_id].next_action}
-                  </span>
-                )}
-              </p>
-              <Button
-                size="sm"
-                className="mt-3"
-                onClick={() => openDrawer(waitingStep)}
-              >
-                查看并审批
-              </Button>
-            </div>
-          )}
+          <PageLayout ratio="3:1">
+            <PrimaryWorkArea title="执行工作流">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">节点图</CardTitle>
+                  <CardDescription>点击节点查看详情与审批</CardDescription>
+                </CardHeader>
+                <CardContent className="h-[480px] p-0">
+                  <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onNodeClick={onNodeClick}
+                    nodeTypes={nodeTypes}
+                    fitView
+                    proOptions={{ hideAttribution: true }}
+                  >
+                    <Background />
+                    <Controls />
+                  </ReactFlow>
+                </CardContent>
+              </Card>
+            </PrimaryWorkArea>
 
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold">工作流</h1>
-              <p className="text-sm text-muted-foreground">
-                节点状态由后端 SSE 事件实时推送（F-010）。
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <TaskStatusBadge status={task.status} />
-              {task.status === 'PLAN_APPROVED' && (
-                <Button
-                  size="sm"
-                  onClick={handleStart}
-                  disabled={startExecution.isPending}
-                >
-                  开始执行
-                </Button>
-              )}
-              <Button variant="outline" size="sm" asChild>
-                <Link to={`/tasks/${taskId}/report`}>查看报告</Link>
-              </Button>
-            </div>
-          </div>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">节点图</CardTitle>
-              <CardDescription>点击节点查看详情与审批</CardDescription>
-            </CardHeader>
-            <CardContent className="h-[480px] p-0">
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onNodeClick={onNodeClick}
-                nodeTypes={nodeTypes}
-                fitView
-                proOptions={{ hideAttribution: true }}
-              >
-                <Background />
-                <Controls />
-              </ReactFlow>
-            </CardContent>
-          </Card>
-
-          <Dialog open={drawerOpen} onOpenChange={(o) => !o && closeDrawer()}>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{selectedStep?.title}</DialogTitle>
-              </DialogHeader>
-              {selectedStep && (
-                <div className="space-y-3 text-sm">
-                  <p>{selectedStep.description}</p>
-                  {nodeStatuses[selectedStep.node_id] && (
-                    <NodeStatusBadge status={nodeStatuses[selectedStep.node_id]} />
-                  )}
-                  <dl className="grid grid-cols-2 gap-2">
-                    <dt className="text-muted-foreground">工具</dt>
-                    <dd>{selectedStep.tool}</dd>
-                    <dt className="text-muted-foreground">风险</dt>
-                    <dd>{selectedStep.risk_level}</dd>
-                    <dt className="text-muted-foreground">需审批</dt>
-                    <dd>{selectedStep.requires_approval ? '是' : '否'}</dd>
-                  </dl>
-                  {selectedEvent?.input_summary && (
-                    <div>
-                      <p className="font-medium">输入摘要</p>
-                      <p className="text-muted-foreground">
-                        {selectedEvent.input_summary}
-                      </p>
+            {/* 辅助面板：执行进度摘要 */}
+            <SupportingPanel title="执行状态">
+              <div className="space-y-2">
+                {plan.proposed_steps.map((s) => {
+                  const status = nodeStatuses[s.node_id] ?? 'pending'
+                  return (
+                    <div key={s.node_id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate">{s.title}</span>
+                      <NodeStatusBadge
+                        status={status}
+                        className="flex-shrink-0"
+                      />
                     </div>
-                  )}
-                  {selectedEvent?.output_summary && (
-                    <div>
-                      <p className="font-medium">输出摘要</p>
-                      <p className="text-muted-foreground">
-                        {selectedEvent.output_summary}
-                      </p>
-                    </div>
-                  )}
-                  {selectedEvent && (
-                    <div>
-                      <p className="font-medium">证据 ID</p>
-                      {selectedEvent.evidence_ids &&
-                      selectedEvent.evidence_ids.length > 0 ? (
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          {selectedEvent.evidence_ids.map((id) => (
-                            <code
-                              key={id}
-                              className="rounded bg-muted px-1.5 py-0.5 text-xs"
-                            >
-                              {id}
-                            </code>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground">暂无证据 ID</p>
-                      )}
-                    </div>
-                  )}
-                  {selectedEvent?.logs && selectedEvent.logs.length > 0 && (
-                    <div>
-                      <p className="font-medium">日志</p>
-                      <ul className="mt-1 list-inside list-disc text-muted-foreground">
-                        {selectedEvent.logs.map((log) => (
-                          <li key={log}>{log}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {selectedEvent?.error_message && (
-                    <p className="text-destructive">{selectedEvent.error_message}</p>
-                  )}
-                  {selectedEvent?.next_action && (
-                    <p className="rounded-md bg-amber-50 p-2 text-amber-900">
-                      {selectedEvent.next_action}
-                    </p>
-                  )}
-                  {nodeStatuses[selectedStep.node_id] === 'waiting_user' && (
-                    <DialogFooter className="gap-2 sm:justify-start">
-                      <Button
-                        size="sm"
-                        onClick={() => handleStepApprove(true)}
-                        disabled={approveStep.isPending}
-                      >
-                        批准步骤
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleStepApprove(false)}
-                        disabled={approveStep.isPending}
-                      >
-                        拒绝
-                      </Button>
-                    </DialogFooter>
-                  )}
+                  )
+                })}
+              </div>
+              {selectedEvent?.evidence_ids && selectedEvent.evidence_ids.length > 0 && (
+                <div className="mt-4">
+                  <EvidenceSummary evidenceIds={selectedEvent.evidence_ids} />
                 </div>
               )}
-            </DialogContent>
-          </Dialog>
+            </SupportingPanel>
+          </PageLayout>
+
+          <PageCommandBar
+            position="top"
+            title="工作流操作"
+            description="等待确认时需要先处理审批节点，完成后可查看报告。"
+            primary={
+              task.status === 'PLAN_APPROVED'
+                ? { label: '开始执行', onClick: handleStart }
+                : waitingStep
+                  ? {
+                      label: guide.primaryAction,
+                      onClick: () => waitingStep && openDrawer(waitingStep),
+                    }
+                  : task.status === 'REPORT_DRAFT' || task.status === 'DONE'
+                    ? { label: CTA_COPY.viewReport, href: `/tasks/${taskId}/report` }
+                    : undefined
+            }
+            secondary={[
+              { label: '返回计划', href: `/tasks/${taskId}/plan` },
+            ]}
+          />
+
+          <SecondaryNavigation
+            items={[
+              ...(task.status === 'REPORT_DRAFT' || task.status === 'REVIEW_REQUIRED' || task.status === 'DONE'
+                ? [{ label: CTA_COPY.viewReport, href: `/tasks/${taskId}/report` }]
+                : []),
+            ]}
+            backTo={{ label: CTA_COPY.backToHistory, href: '/history' }}
+          />
+
+          {/* 节点详情 Drawer */}
+          <SupportingDrawer
+            open={drawerOpen}
+            onClose={closeDrawer}
+            title={selectedStep?.title ?? '节点详情'}
+            technical
+          >
+            {selectedStep && (
+              <div className="space-y-4">
+                <p>{selectedStep.description}</p>
+                {nodeStatuses[selectedStep.node_id] && (
+                  <NodeStatusBadge status={nodeStatuses[selectedStep.node_id]} />
+                )}
+                <dl className="grid grid-cols-2 gap-2">
+                  <dt className="text-muted-foreground">工具</dt>
+                  <dd title={selectedStep.tool}>
+                    {nodeTypeCopy?.label ?? selectedStep.tool}
+                  </dd>
+                  <dt className="text-muted-foreground">风险</dt>
+                  <dd title={selectedStep.risk_level}>
+                    {riskCopy?.label ?? selectedStep.risk_level}
+                  </dd>
+                  <dt className="text-muted-foreground">需审批</dt>
+                  <dd>{selectedStep.requires_approval ? '是' : '否'}</dd>
+                </dl>
+                {selectedEvent?.input_summary && (
+                  <div>
+                    <p className="font-medium">输入摘要</p>
+                    <p className="text-muted-foreground">{selectedEvent.input_summary}</p>
+                  </div>
+                )}
+                {selectedEvent?.output_summary && (
+                  <div>
+                    <p className="font-medium">输出摘要</p>
+                    <p className="text-muted-foreground">{selectedEvent.output_summary}</p>
+                  </div>
+                )}
+                {selectedEvent && (
+                  <EvidenceSummary
+                    evidenceIds={selectedEvent.evidence_ids ?? []}
+                  />
+                )}
+                {selectedEvent?.logs && selectedEvent.logs.length > 0 && (
+                  <div>
+                    <p className="font-medium">日志</p>
+                    <ul className="mt-1 list-inside list-disc text-muted-foreground">
+                      {selectedEvent.logs.map((log) => (
+                        <li key={log}>{log}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {selectedEvent?.error_message && (
+                  <p className="text-destructive">{selectedEvent.error_message}</p>
+                )}
+                {selectedEvent?.next_action && (
+                  <p className="rounded-md bg-amber-50 p-2 text-amber-900">
+                    {selectedEvent.next_action}
+                  </p>
+                )}
+                {nodeStatuses[selectedStep.node_id] === 'waiting_user' && (
+                  <div className="flex gap-2 pt-2 border-t">
+                    <Button
+                      size="sm"
+                      onClick={() => handleStepApprove(true)}
+                      disabled={approveStep.isPending}
+                    >
+                      批准步骤
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleStepApprove(false)}
+                      disabled={approveStep.isPending}
+                    >
+                      拒绝
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </SupportingDrawer>
         </div>
       )}
     </QueryState>

@@ -28,11 +28,4 @@ export const TASK_STATUS_STYLE: Record<string, string> = {
   FAILED: 'bg-red-50 text-red-800 border-red-500',
 }
 
-export const NODE_STATUS_LABEL: Record<NodeStatus, string> = {
-  pending: '待定',
-  running: '运行中',
-  waiting_user: '等待用户',
-  completed: '已完成',
-  failed: '失败',
-  skipped: '已跳过',
-}
+// NODE_STATUS_LABEL 已废弃 — 文案统一从 @/lib/uiCopy 的 NODE_STATUS_COPY 获取

@@ -10,6 +10,7 @@ import { AlertTriangle } from 'lucide-react'
 import { NodeStatusBadge } from '@/components/common/StatusBadge'
 import { NODE_STYLE } from '@/features/workflow/statusColor'
 import { cn } from '@/lib/utils'
+import { STEP_TOOL_COPY } from '@/lib/uiCopy'
 
 import type { StepNodeData } from './buildGraph'
 
@@ -37,7 +38,9 @@ function StepNodeComponent({ data }: NodeProps<Node<StepNodeData>>) {
           )}
         </div>
         <NodeStatusBadge status={displayStatus} />
-        <span className="text-xs text-muted-foreground">{step.tool}</span>
+        <span className="text-xs text-muted-foreground" title={step.tool}>
+          {STEP_TOOL_COPY[step.tool]?.label ?? step.tool}
+        </span>
       </div>
       <Handle type="source" position={Position.Right} className="!bg-slate-400" />
     </div>

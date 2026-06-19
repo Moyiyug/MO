@@ -62,6 +62,19 @@ class TaskRepository:
         ).all()
         return [_to_response(r) for r in rows]
 
+    def page(self, *, limit: int, offset: int) -> list[TaskResponse]:
+        rows = self.session.exec(
+            select(TaskTable)
+            .order_by(TaskTable.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        ).all()
+        return [_to_response(r) for r in rows]
+
+    def count(self) -> int:
+        rows = self.session.exec(select(TaskTable.id)).all()
+        return len(rows)
+
     def get(self, task_id: str) -> TaskResponse | None:
         row = self.session.get(TaskTable, task_id)
         return _to_response(row) if row else None
@@ -88,6 +101,44 @@ class TaskRepository:
         self.session.commit()
         self.session.refresh(row)
         return _to_response(row)
+
+    def delete_bundle(self, task_id: str) -> list[str] | None:
+        """硬删除任务及所有主业务库关联记录，返回需清理的 PlanMode thread_id。
+
+        当前表未启用外键级联，所以这里显式按 task_id 清理关联表，并只提交一次。
+        """
+        task = self.session.get(TaskTable, task_id)
+        if task is None:
+            return None
+
+        plan_rows = self.session.exec(
+            select(PlanTable).where(PlanTable.task_id == task_id)
+        ).all()
+        plan_thread_ids = [row.thread_id for row in plan_rows]
+
+        table_types = (
+            NodeEventTable,
+            ReportTable,
+            ComparisonTable,
+            ReproducibilityTable,
+            RepoCardTable,
+            EvidenceTable,
+            PlanTable,
+        )
+        try:
+            for table_type in table_types:
+                rows = self.session.exec(
+                    select(table_type).where(table_type.task_id == task_id)
+                ).all()
+                for row in rows:
+                    self.session.delete(row)
+            self.session.delete(task)
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
+
+        return plan_thread_ids
 
 
 class PlanRepository:

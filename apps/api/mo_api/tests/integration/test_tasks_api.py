@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sqlmodel import Session
+
+from mo_api.storage.tables import TaskTable
+
 
 async def test_create_task_returns_planning(client, valid_task_payload) -> None:
     resp = await client.post("/api/tasks", json=valid_task_payload)
@@ -30,9 +34,99 @@ async def test_list_tasks(client, valid_task_payload) -> None:
     assert len(resp.json()) == 2
 
 
+async def test_page_tasks_returns_limited_history(client, valid_task_payload) -> None:
+    for _ in range(3):
+        await client.post("/api/tasks", json=valid_task_payload)
+
+    resp = await client.get("/api/tasks/page?limit=2&offset=1")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 3
+    assert body["limit"] == 2
+    assert body["offset"] == 1
+    assert len(body["items"]) == 2
+
+
 async def test_get_missing_task_404(client) -> None:
     resp = await client.get("/api/tasks/does-not-exist")
     assert resp.status_code == 404
+
+
+async def test_delete_task_removes_history_entry(
+    client, valid_task_payload, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "mo_api.services.task_service.cleanup_deleted_task_runtime",
+        lambda task_id, plan_thread_ids: None,
+    )
+    created = (await client.post("/api/tasks", json=valid_task_payload)).json()
+
+    resp = await client.delete(f"/api/tasks/{created['task_id']}")
+
+    assert resp.status_code == 204
+    detail = await client.get(f"/api/tasks/{created['task_id']}")
+    assert detail.status_code == 404
+    listed = (await client.get("/api/tasks")).json()
+    assert all(t["task_id"] != created["task_id"] for t in listed)
+
+
+async def test_delete_missing_task_404(client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "mo_api.services.task_service.cleanup_deleted_task_runtime",
+        lambda task_id, plan_thread_ids: None,
+    )
+    resp = await client.delete("/api/tasks/does-not-exist")
+
+    assert resp.status_code == 404
+
+
+async def test_delete_executing_task_returns_409(
+    client, engine, valid_task_payload, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "mo_api.services.task_service.cleanup_deleted_task_runtime",
+        lambda task_id, plan_thread_ids: None,
+    )
+    created = (await client.post("/api/tasks", json=valid_task_payload)).json()
+    with Session(engine) as session:
+        row = session.get(TaskTable, created["task_id"])
+        assert row is not None
+        row.status = "EXECUTING"
+        session.add(row)
+        session.commit()
+
+    resp = await client.delete(f"/api/tasks/{created['task_id']}")
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "cannot delete executing task"
+
+
+async def test_delete_all_tasks_skips_executing(
+    client, engine, valid_task_payload, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "mo_api.services.task_service.cleanup_deleted_task_runtime",
+        lambda task_id, plan_thread_ids: None,
+    )
+    first = (await client.post("/api/tasks", json=valid_task_payload)).json()
+    second = (await client.post("/api/tasks", json=valid_task_payload)).json()
+    third = (await client.post("/api/tasks", json=valid_task_payload)).json()
+    with Session(engine) as session:
+        row = session.get(TaskTable, second["task_id"])
+        assert row is not None
+        row.status = "EXECUTING"
+        session.add(row)
+        session.commit()
+
+    resp = await client.delete("/api/tasks")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body["deleted_task_ids"]) == {first["task_id"], third["task_id"]}
+    assert body["skipped_task_ids"] == [second["task_id"]]
+    listed = (await client.get("/api/tasks")).json()
+    assert [task["task_id"] for task in listed] == [second["task_id"]]
 
 
 async def test_create_rejects_invalid_repo_url(client) -> None:

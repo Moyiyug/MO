@@ -11,8 +11,10 @@ import type {
   ClarificationsRequest,
   Plan,
   ReplanRequest,
+  TaskBulkDeleteResponse,
   TaskCreateRequest,
   TaskCreateResponse,
+  TaskPageResponse,
   TaskResponse,
 } from '@/types'
 
@@ -20,6 +22,8 @@ import { api } from './client'
 
 export const taskKeys = {
   all: ['tasks'] as const,
+  pages: ['tasks', 'page'] as const,
+  page: (limit: number, offset: number) => ['tasks', 'page', limit, offset] as const,
   detail: (id: string) => ['task', id] as const,
   plan: (id: string) => ['plan', id] as const,
 }
@@ -30,6 +34,10 @@ export function fetchTask(taskId: string): Promise<TaskResponse> {
 
 export function fetchTasks(): Promise<TaskResponse[]> {
   return api<TaskResponse[]>('/api/tasks')
+}
+
+export function fetchTaskPage(limit: number, offset: number): Promise<TaskPageResponse> {
+  return api<TaskPageResponse>(`/api/tasks/page?limit=${limit}&offset=${offset}`)
 }
 
 export function createTask(
@@ -82,6 +90,18 @@ export function rerunTask(taskId: string): Promise<TaskCreateResponse> {
   })
 }
 
+export function deleteTask(taskId: string): Promise<void> {
+  return api<void>(`/api/tasks/${taskId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function deleteAllTasks(): Promise<TaskBulkDeleteResponse> {
+  return api<TaskBulkDeleteResponse>('/api/tasks', {
+    method: 'DELETE',
+  })
+}
+
 export function useTask(
   taskId: string | undefined,
   options?: Omit<UseQueryOptions<TaskResponse>, 'queryKey' | 'queryFn'>,
@@ -98,6 +118,13 @@ export function useTasks() {
   return useQuery({
     queryKey: taskKeys.all,
     queryFn: fetchTasks,
+  })
+}
+
+export function useTaskPage(limit: number, offset: number) {
+  return useQuery({
+    queryKey: taskKeys.page(limit, offset),
+    queryFn: () => fetchTaskPage(limit, offset),
   })
 }
 
@@ -191,6 +218,34 @@ export function useRerunTask() {
     mutationFn: rerunTask,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: taskKeys.all })
+    },
+  })
+}
+
+export function useDeleteTask() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: deleteTask,
+    onSuccess: (_data, taskId) => {
+      void qc.invalidateQueries({ queryKey: taskKeys.all })
+      void qc.invalidateQueries({ queryKey: taskKeys.pages })
+      void qc.removeQueries({ queryKey: taskKeys.detail(taskId) })
+      void qc.removeQueries({ queryKey: taskKeys.plan(taskId) })
+    },
+  })
+}
+
+export function useDeleteAllTasks() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: deleteAllTasks,
+    onSuccess: (result) => {
+      void qc.invalidateQueries({ queryKey: taskKeys.all })
+      void qc.invalidateQueries({ queryKey: taskKeys.pages })
+      for (const taskId of result.deleted_task_ids) {
+        void qc.removeQueries({ queryKey: taskKeys.detail(taskId) })
+        void qc.removeQueries({ queryKey: taskKeys.plan(taskId) })
+      }
     },
   })
 }

@@ -67,3 +67,22 @@ class TaskCreateResponse(BaseModel):
 
     task_id: str
     status: TaskStatus
+
+
+class TaskPageResponse(BaseModel):
+    """分页历史任务响应（F-013）。"""
+
+    items: list[TaskResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1)
+    offset: int = Field(ge=0)
+
+
+class TaskBulkDeleteResponse(BaseModel):
+    """批量删除历史任务响应（F-013）。
+
+    EXECUTING 任务不会被删除，直到未来实现取消执行能力。
+    """
+
+    deleted_task_ids: list[str] = Field(default_factory=list)
+    skipped_task_ids: list[str] = Field(default_factory=list)
