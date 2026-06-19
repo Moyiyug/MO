@@ -13,10 +13,12 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { MOError } from '@/api/client'
 import { useEvidence } from '@/api/evidence'
 import {
   useConfirmReport,
   useExportReport,
+  useGenerateReport,
   useRegenerateReport,
   useReport,
 } from '@/api/report'
@@ -34,7 +36,7 @@ import { QueryState } from '@/components/common/QueryState'
 import { SafeMarkdown } from '@/components/common/SafeMarkdown'
 import { StatusGuide } from '@/components/common/StatusGuide'
 import { TaskStatusBadge } from '@/components/common/StatusBadge'
-import { Badge } from '@/components/ui/badge'
+import { MetricChip } from '@/components/common/visual'
 import { Card, CardContent } from '@/components/ui/card'
 import { buildEvidenceLookup, getEvidenceLabel } from '@/lib/evidenceIndex'
 import { cn } from '@/lib/utils'
@@ -84,12 +86,16 @@ export function ReportPage() {
     isError: reportError,
     error: reportErr,
     refetch: refetchReport,
-  } = useReport(taskId, hasReport)
+  } = useReport(taskId, hasReport, { retry: false })
 
-  const { data: evidence } = useEvidence(taskId, Boolean(taskId) && hasReport)
+  const reportNotFound =
+    reportError && reportErr instanceof MOError && reportErr.status === 404
+
+  const { data: evidence } = useEvidence(taskId, Boolean(taskId) && Boolean(report))
 
   const confirmMutation = useConfirmReport()
   const exportMutation = useExportReport()
+  const generateMutation = useGenerateReport()
   const regenerateMutation = useRegenerateReport()
 
   const evidenceLookup = useMemo(() => buildEvidenceLookup(evidence), [evidence])
@@ -104,6 +110,14 @@ export function ReportPage() {
     exportMutation.mutate(taskId, {
       onSuccess: () => toast.success('报告已导出'),
       onError: (e) => toast.error(e instanceof Error ? e.message : '导出失败'),
+    })
+  }
+
+  const handleGenerate = () => {
+    if (!taskId) return
+    generateMutation.mutate(taskId, {
+      onSuccess: () => toast.success('报告已生成'),
+      onError: (e) => toast.error(e instanceof Error ? e.message : '生成报告失败'),
     })
   }
 
@@ -151,8 +165,9 @@ export function ReportPage() {
   const selectedIndex = report?.sections.findIndex((section) => section.key === sectionKey) ?? -1
   const guide = PAGE_GUIDE_COPY.report
   const isLoading = taskLoading || (hasReport && reportLoading)
-  const isError = taskError || reportError
+  const isError = taskError || (reportError && !reportNotFound)
   const error = taskErr ?? reportErr
+  const shouldShowGenerate = task && (!hasReport || reportNotFound || !report)
 
   const renderEvidenceRefs = (evidenceIds: string[]) => {
     if (evidenceIds.length === 0) return null
@@ -236,10 +251,10 @@ export function ReportPage() {
             </div>
             <p className="text-sm text-muted-foreground">调研目标：{task?.goal}</p>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">{summaryData.repoCount} 个仓库</Badge>
-              <Badge variant="outline">{summaryData.evidenceTotal} 条证据</Badge>
-              <Badge variant="outline">{summaryData.claimTotal} 条结论</Badge>
-              <Badge variant="outline">{summaryData.sectionCount} 个章节</Badge>
+              <MetricChip label="仓库" value={summaryData.repoCount} />
+              <MetricChip label="证据" value={summaryData.evidenceTotal} tone="green" />
+              <MetricChip label="结论" value={summaryData.claimTotal} tone="violet" />
+              <MetricChip label="章节" value={summaryData.sectionCount} tone="slate" />
             </div>
           </CardContent>
         </Card>
@@ -411,6 +426,46 @@ export function ReportPage() {
     return renderOverview()
   }
 
+  const renderMissingReport = () => {
+    if (!task) return null
+    return (
+      <div className="mo-page-shell">
+        <StatusGuide
+          title={guide.title}
+          whatNow={guide.whatNow}
+          blockReason={guide.notGenerated}
+          severity="warning"
+          primaryAction={{
+            label: generateMutation.isPending ? '生成中…' : '生成报告',
+            onClick: handleGenerate,
+            disabled: generateMutation.isPending,
+          }}
+          statusBadge={<TaskStatusBadge status={task.status} />}
+        />
+
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-muted-foreground" aria-hidden />
+              <h2 className="text-lg font-semibold">报告尚未生成</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              GET /report 只读取已有报告。需要报告时请显式点击生成，生成后再审阅、导出或确认。
+            </p>
+          </CardContent>
+        </Card>
+
+        <SecondaryNavigation
+          items={[
+            { label: CTA_COPY.viewWorkflow, href: `/tasks/${taskId}/workflow` },
+            { label: '查看对比', href: `/tasks/${taskId}/comparison` },
+          ]}
+          backTo={{ label: CTA_COPY.backToHistory, href: '/history' }}
+        />
+      </div>
+    )
+  }
+
   return (
     <QueryState
       isLoading={isLoading}
@@ -420,12 +475,13 @@ export function ReportPage() {
         void refetchTask()
         if (hasReport) void refetchReport()
       }}
-      isEmpty={!hasReport}
-      emptyTitle={PAGE_GUIDE_COPY.report.notGenerated ?? '报告尚未生成'}
-      emptyDescription="报告将在执行阶段完成后生成。"
+      isEmpty={!task}
+      emptyTitle="任务不存在"
+      emptyDescription="请返回历史列表重新选择任务。"
     >
+      {shouldShowGenerate && renderMissingReport()}
       {task && hasReport && report && (
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="mo-page-shell">
           <StatusGuide
             title={guide.title}
             whatNow={guide.whatNow}
@@ -520,16 +576,16 @@ export function ReportPage() {
             position="top"
             title={viewMode === 'section' ? selectedSection?.title : '报告操作'}
             description="导出会保留 Markdown、结论标签与证据引用。"
-            primary={
-              task.status === 'REVIEW_REQUIRED'
-                ? { label: CTA_COPY.confirm, onClick: handleConfirm }
-                : {
-                    label: CTA_COPY.export,
-                    onClick: handleExport,
-                    icon: <FileDown className="h-4 w-4" aria-hidden />,
-                  }
-            }
             secondary={[
+              ...(task.status === 'REVIEW_REQUIRED'
+                ? [
+                    {
+                      label: CTA_COPY.export,
+                      onClick: handleExport,
+                      icon: <FileDown className="h-4 w-4" aria-hidden />,
+                    },
+                  ]
+                : []),
               {
                 label: CTA_COPY.regenerate,
                 onClick: handleRegenerate,

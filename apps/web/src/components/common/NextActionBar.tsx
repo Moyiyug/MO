@@ -17,6 +17,7 @@
  */
 
 import { useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowRight } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,8 @@ import { cn } from '@/lib/utils'
 export interface PrimaryAction {
   label: string
   onClick?: () => void
+  /** 站内路由，使用 React Router Link，避免整页刷新 */
+  to?: string
   href?: string
   disabled?: boolean
   destructive?: boolean
@@ -42,10 +45,54 @@ export interface PrimaryAction {
 
 export interface NavItem {
   label: string
+  /** 站内路由，使用 React Router Link，避免整页刷新 */
+  to?: string
   href?: string
   onClick?: () => void
   active?: boolean
   icon?: ReactNode
+}
+
+function isInternalHref(href: string | undefined): href is string {
+  return Boolean(href && href.startsWith('/'))
+}
+
+function ActionContent({
+  action,
+  showArrow,
+}: {
+  action: PrimaryAction | NavItem
+  showArrow?: boolean
+}) {
+  return (
+    <>
+      {'icon' in action ? action.icon : null}
+      {action.label}
+      {showArrow && <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />}
+    </>
+  )
+}
+
+function ActionLink({
+  action,
+  showArrow,
+}: {
+  action: PrimaryAction | NavItem
+  showArrow?: boolean
+}) {
+  const target = action.to ?? (isInternalHref(action.href) ? action.href : undefined)
+  if (target) {
+    return (
+      <Link to={target}>
+        <ActionContent action={action} showArrow={showArrow} />
+      </Link>
+    )
+  }
+  return (
+    <a href={action.href}>
+      <ActionContent action={action} showArrow={showArrow} />
+    </a>
+  )
 }
 
 export interface NextActionBarProps {
@@ -87,20 +134,16 @@ export function NextActionBar({
       <div
         className={cn(
           'relative z-10 flex items-center justify-between gap-3 flex-wrap',
-          'rounded-lg border bg-card/95 px-5 py-3',
-          'shadow-sm',
+          'mo-blueprint-panel rounded-lg border bg-card/90 px-5 py-3 shadow-sm',
           className,
         )}
       >
         {/* 左侧：返回 */}
         <div>
           {backTo && (
-            backTo.href ? (
+            backTo.href || backTo.to ? (
               <Button variant="ghost" size="sm" asChild>
-                <a href={backTo.href}>
-                  {backTo.icon}
-                  {backTo.label}
-                </a>
+                <ActionLink action={backTo} />
               </Button>
             ) : (
               <Button variant="ghost" size="sm" onClick={backTo.onClick}>
@@ -133,9 +176,9 @@ export function NextActionBar({
 
           {/* 次要操作 */}
           {secondary?.map((action, idx) =>
-            action.href ? (
+            action.href || action.to ? (
               <Button key={idx} variant="outline" size="sm" disabled={action.disabled} asChild>
-                <a href={action.href}>{action.label}</a>
+                <ActionLink action={action} />
               </Button>
             ) : (
               <Button
@@ -152,17 +195,13 @@ export function NextActionBar({
 
           {/* 主 CTA */}
           {primary && (
-            primary.href ? (
+            primary.href || primary.to ? (
               <Button size="sm" disabled={primary.disabled} asChild>
-                <a href={primary.href}>
-                  {primary.label}
-                  <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
-                </a>
+                <ActionLink action={primary} showArrow />
               </Button>
             ) : (
               <Button size="sm" disabled={primary.disabled} onClick={primary.onClick}>
-                {primary.label}
-                <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+                <ActionContent action={primary} showArrow />
               </Button>
             )
           )}

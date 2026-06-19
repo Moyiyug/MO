@@ -1,12 +1,15 @@
 import type { ReactNode } from 'react'
-import { AlertCircle, Inbox, Loader2, PauseCircle } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { AlertCircle, Inbox, PauseCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { MOError } from '@/api/client'
+import { BlueprintEmptyState, BlueprintSkeleton } from '@/components/common/visual'
 
 interface EmptyAction {
   label: string
   onClick?: () => void
+  to?: string
   href?: string
 }
 
@@ -26,6 +29,10 @@ interface QueryStateProps {
   blockedAction?: { label: string; onClick: () => void }
   onRetry?: () => void
   children: ReactNode
+}
+
+function isInternalHref(href: string | undefined): href is string {
+  return Boolean(href && href.startsWith('/'))
 }
 
 function formatError(error: Error): string {
@@ -57,77 +64,69 @@ export function QueryState({
   children,
 }: QueryStateProps) {
   if (isLoading) {
-    return (
-      <div
-        className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground"
-        role="status"
-        aria-live="polite"
-      >
-        <Loader2 className="h-8 w-8 animate-spin" aria-hidden />
-        <span>加载中…</span>
-      </div>
-    )
+    return <BlueprintSkeleton className="my-12" lines={5} />
   }
 
   if (isError && error) {
     return (
-      <div
-        className="flex flex-col items-center justify-center gap-3 py-16 text-destructive"
-        role="alert"
-      >
-        <AlertCircle className="h-8 w-8" aria-hidden />
-        <p className="max-w-md text-center text-sm">{formatError(error)}</p>
-        {onRetry && (
-          <Button variant="outline" size="sm" onClick={onRetry}>
-            重试
-          </Button>
-        )}
-      </div>
+      <BlueprintEmptyState
+        title="加载失败"
+        description={formatError(error)}
+        icon={<AlertCircle className="h-5 w-5 text-red-700" aria-hidden />}
+        action={
+          onRetry ? (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              重试
+            </Button>
+          ) : undefined
+        }
+      />
     )
   }
 
   if (isEmpty) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-        <Inbox className="h-8 w-8" aria-hidden />
-        <p className="font-medium text-foreground">{emptyTitle}</p>
-        {emptyDescription && (
-          <p className="max-w-md text-center text-sm">{emptyDescription}</p>
-        )}
-        {emptyAction && (
-          emptyAction.href ? (
-            <Button variant="outline" size="sm" asChild>
-              <a href={emptyAction.href}>{emptyAction.label}</a>
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={emptyAction.onClick}>
-              {emptyAction.label}
-            </Button>
-          )
-        )}
-      </div>
+      <BlueprintEmptyState
+        title={emptyTitle}
+        description={emptyDescription}
+        icon={<Inbox className="h-5 w-5" aria-hidden />}
+        action={
+          emptyAction ? (
+            emptyAction.to || emptyAction.href ? (
+              <Button variant="outline" size="sm" asChild>
+                {emptyAction.to || isInternalHref(emptyAction.href) ? (
+                  <Link to={emptyAction.to ?? emptyAction.href!}>
+                    {emptyAction.label}
+                  </Link>
+                ) : (
+                  <a href={emptyAction.href}>{emptyAction.label}</a>
+                )}
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={emptyAction.onClick}>
+                {emptyAction.label}
+              </Button>
+            )
+          ) : undefined
+        }
+      />
     )
   }
 
   if (isBlocked) {
     return (
-      <div
-        className="flex flex-col items-center justify-center gap-3 py-16"
-        role="alert"
-      >
-        <PauseCircle className="h-8 w-8 text-amber-500" aria-hidden />
-        <p className="font-medium text-amber-900">{blockedTitle}</p>
-        {blockedDescription && (
-          <p className="max-w-md text-center text-sm text-amber-700">
-            {blockedDescription}
-          </p>
-        )}
-        {blockedAction && (
-          <Button size="sm" onClick={blockedAction.onClick}>
-            {blockedAction.label}
-          </Button>
-        )}
-      </div>
+      <BlueprintEmptyState
+        title={blockedTitle}
+        description={blockedDescription}
+        icon={<PauseCircle className="h-5 w-5 text-amber-600" aria-hidden />}
+        action={
+          blockedAction ? (
+            <Button size="sm" onClick={blockedAction.onClick}>
+              {blockedAction.label}
+            </Button>
+          ) : undefined
+        }
+      />
     )
   }
 

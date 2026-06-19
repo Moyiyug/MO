@@ -27,25 +27,44 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --mo-paper: oklch(0.987 0.006 235);
+  --mo-paper-strong: oklch(0.998 0.003 235);
+  --mo-paper-glass: oklch(0.997 0.004 235 / 90%);
+  --mo-ink: oklch(0.205 0.025 245);
+  --mo-ink-muted: oklch(0.47 0.03 245);
+  --mo-blue: oklch(0.46 0.17 260);
+  --mo-blue-soft: oklch(0.76 0.095 245);
+  --mo-blue-faint: oklch(0.955 0.02 240);
+  --mo-grid: oklch(0.80 0.03 240 / 18%);
+  --mo-grid-dot: oklch(0.52 0.055 246 / 26%);
+  --mo-line: oklch(0.75 0.032 238 / 48%);
+  --mo-line-strong: oklch(0.52 0.095 252 / 68%);
+  --mo-warning: oklch(0.68 0.15 78);
+  --mo-success: oklch(0.58 0.13 162);
+  --mo-danger: oklch(0.58 0.19 26);
+  --mo-shadow-soft: 0 18px 48px oklch(0.36 0.035 245 / 12%);
+  --mo-shadow-line: 0 1px 0 oklch(1 0 0 / 80%) inset, 0 16px 42px oklch(0.38 0.04 248 / 10%);
+  --mo-radius-panel: 0.5rem;
+
+  --background: var(--mo-paper);
+  --foreground: var(--mo-ink);
+  --card: var(--mo-paper-glass);
+  --card-foreground: var(--mo-ink);
+  --popover: var(--mo-paper-strong);
+  --popover-foreground: var(--mo-ink);
+  --primary: var(--mo-blue);
+  --primary-foreground: oklch(0.99 0.004 235);
+  --secondary: var(--mo-blue-faint);
+  --secondary-foreground: oklch(0.30 0.055 252);
+  --muted: oklch(0.955 0.012 235);
+  --muted-foreground: var(--mo-ink-muted);
+  --accent: oklch(0.93 0.035 242);
+  --accent-foreground: oklch(0.24 0.055 252);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: var(--mo-line);
+  --input: oklch(0.80 0.03 238 / 74%);
+  --ring: var(--mo-blue-soft);
   --radius: 0.5rem;
 }
 
@@ -79,8 +98,17 @@
   body {
     @apply bg-background text-foreground antialiased;
     background:
-      linear-gradient(180deg, color-mix(in oklch, var(--background) 92%, oklch(0.95 0.03 250) 8%) 0%, var(--background) 30rem),
-      repeating-linear-gradient(90deg, transparent 0 31px, oklch(0.94 0.01 250 / 35%) 31px 32px);
+      radial-gradient(circle at 10% -8%, oklch(0.94 0.04 236 / 36%) 0 18rem, transparent 36rem),
+      radial-gradient(circle at 86% 12%, oklch(0.92 0.035 260 / 18%) 0 15rem, transparent 34rem),
+      linear-gradient(180deg, oklch(0.995 0.004 235) 0%, var(--mo-paper) 34rem);
+    background-size:
+      auto,
+      auto,
+      auto;
+    background-position:
+      0 0,
+      0 0,
+      0 0;
     margin: 0;
     min-height: 100svh;
   }
@@ -107,5 +135,204 @@
       scroll-behavior: auto !important;
       transition-duration: 0.01ms !important;
     }
+  }
+}
+
+@layer components {
+  .mo-page-shell {
+    @apply mx-auto max-w-7xl space-y-6;
+    animation: mo-page-in 220ms ease-out both;
+  }
+
+  .mo-blueprint-panel {
+    isolation: isolate;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--mo-line);
+    border-radius: var(--mo-radius-panel);
+    background:
+      linear-gradient(135deg, oklch(1 0 0 / 84%), transparent 54%),
+      linear-gradient(180deg, oklch(1 0 0 / 72%), oklch(0.985 0.008 235 / 82%)),
+      var(--mo-paper-glass);
+    box-shadow: var(--mo-shadow-line);
+    backdrop-filter: blur(10px);
+  }
+
+  .mo-blueprint-panel::before,
+  .mo-blueprint-panel::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    width: 1.35rem;
+    height: 1.35rem;
+    pointer-events: none;
+    opacity: 0.68;
+  }
+
+  .mo-blueprint-panel::before {
+    top: 0.55rem;
+    left: 0.55rem;
+    border-top: 1px solid var(--mo-line-strong);
+    border-left: 1px solid var(--mo-line-strong);
+  }
+
+  .mo-blueprint-panel::after {
+    right: 0.55rem;
+    bottom: 0.55rem;
+    border-right: 1px solid var(--mo-line-strong);
+    border-bottom: 1px solid var(--mo-line-strong);
+  }
+
+  .mo-card-hover {
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      transform 180ms ease,
+      background-color 180ms ease;
+  }
+
+  .mo-card-hover:hover {
+    border-color: var(--mo-line-strong);
+    box-shadow: var(--mo-shadow-soft);
+  }
+
+  .mo-dossier-surface {
+    background:
+      linear-gradient(90deg, oklch(1 0 0 / 78%) 0%, oklch(0.98 0.012 235 / 86%) 70%, oklch(0.965 0.018 238 / 82%) 100%),
+      var(--mo-paper-glass);
+  }
+
+  .mo-dossier-ornament {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .mo-dossier-ornament::before {
+    content: "";
+    position: absolute;
+    inset: 0.75rem 0.9rem 0.75rem auto;
+    width: min(30rem, 42%);
+    opacity: 0.58;
+    background:
+      radial-gradient(circle at 1.1rem 1.1rem, var(--mo-grid-dot) 0 1px, transparent 1.35px),
+      linear-gradient(var(--mo-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--mo-grid) 1px, transparent 1px);
+    background-size: 6.5rem 6.5rem, 2.75rem 2.75rem, 2.75rem 2.75rem;
+    mask-image: linear-gradient(90deg, transparent 0%, black 28%, black 100%);
+  }
+
+  .mo-dossier-ornament::after {
+    content: "";
+    position: absolute;
+    right: 2.2rem;
+    top: 1.1rem;
+    width: min(16rem, 32vw);
+    height: 4.8rem;
+    opacity: 0.35;
+    border-top: 1px solid var(--mo-line-strong);
+    border-right: 1px solid var(--mo-line-strong);
+    background:
+      linear-gradient(112deg, transparent 0 46%, var(--mo-line-strong) 46% calc(46% + 1px), transparent calc(46% + 1px) 100%),
+      linear-gradient(180deg, transparent 0 68%, var(--mo-line) 68% calc(68% + 1px), transparent calc(68% + 1px) 100%);
+  }
+
+  @media (max-width: 640px) {
+    .mo-dossier-ornament::before,
+    .mo-dossier-ornament::after {
+      opacity: 0.16;
+      width: 52%;
+    }
+  }
+
+  .mo-technical-surface {
+    background:
+      radial-gradient(circle at 1.1rem 1.1rem, var(--mo-grid-dot) 0 1px, transparent 1.35px),
+      linear-gradient(var(--mo-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--mo-grid) 1px, transparent 1px),
+      linear-gradient(180deg, oklch(1 0 0 / 78%), oklch(0.985 0.008 235 / 86%)),
+      var(--mo-paper-glass);
+    background-size: 7rem 7rem, 3.5rem 3.5rem, 3.5rem 3.5rem, auto, auto;
+  }
+
+  .mo-subtle-field {
+    background:
+      radial-gradient(circle at 1.2rem 1.2rem, var(--mo-grid-dot) 0 1px, transparent 1.4px),
+      linear-gradient(180deg, oklch(1 0 0 / 74%), oklch(0.985 0.008 235 / 76%));
+    background-size: 8rem 8rem, auto;
+  }
+
+  .mo-scan-line {
+    position: relative;
+  }
+
+  .mo-scan-line::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: linear-gradient(180deg, transparent, var(--mo-blue), transparent);
+    animation: mo-scan 1.8s ease-in-out infinite;
+  }
+
+  .mo-node-running {
+    animation: mo-node-flow 1.7s linear infinite;
+    background-size: 200% 100%;
+  }
+
+  .mo-node-waiting {
+    animation: mo-wait-pulse 2s ease-in-out infinite;
+  }
+
+  .mo-log-surface {
+    background:
+      linear-gradient(90deg, oklch(0.18 0.025 245 / 4%) 1px, transparent 1px),
+      oklch(0.98 0.006 235 / 78%);
+    background-size: 1.25rem 1.25rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+}
+
+@keyframes mo-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mo-scan {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: translateY(-20%);
+  }
+  50% {
+    opacity: 0.75;
+    transform: translateY(20%);
+  }
+}
+
+@keyframes mo-node-flow {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes mo-wait-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.72 0.15 78 / 26%);
+  }
+  50% {
+    box-shadow: 0 0 0 4px oklch(0.72 0.15 78 / 10%);
   }
 }

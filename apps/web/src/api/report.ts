@@ -19,6 +19,12 @@ export function fetchReport(taskId: string): Promise<ReportResponse> {
   return api<ReportResponse>(`/api/tasks/${taskId}/report`)
 }
 
+export function generateReport(taskId: string): Promise<ReportResponse> {
+  return api<ReportResponse>(`/api/tasks/${taskId}/generate-report`, {
+    method: 'POST',
+  })
+}
+
 export async function exportReport(taskId: string): Promise<void> {
   const base = getApiBaseUrl()
   const res = await fetch(`${base}/api/tasks/${taskId}/export`, {
@@ -78,6 +84,17 @@ export function useConfirmReport() {
   })
 }
 
+export function useGenerateReport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: generateReport,
+    onSuccess: (_data, taskId) => {
+      void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) })
+      void qc.invalidateQueries({ queryKey: reportKeys.detail(taskId) })
+    },
+  })
+}
+
 export function regenerateReport(
   taskId: string,
 ): Promise<ReportResponse> {
@@ -91,6 +108,7 @@ export function useRegenerateReport() {
   return useMutation({
     mutationFn: regenerateReport,
     onSuccess: (_data, taskId) => {
+      void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) })
       void qc.invalidateQueries({ queryKey: reportKeys.detail(taskId) })
     },
   })

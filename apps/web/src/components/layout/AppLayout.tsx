@@ -17,33 +17,33 @@ export function AppLayout() {
 
   return (
     <div className="min-h-svh flex flex-col">
-      <header className="sticky top-0 z-40 border-b bg-background/88 backdrop-blur supports-[backdrop-filter]:bg-background/72">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="text-lg font-semibold tracking-tight">
+      <header className="sticky top-0 z-40 border-b border-[var(--mo-line)] bg-background/86 shadow-[var(--mo-shadow-line)] backdrop-blur supports-[backdrop-filter]:bg-background/72">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <Link to="/" className="text-lg font-semibold tracking-[0.18em] text-blue-900">
               MO
             </Link>
             <Link
               to="/history"
-              className="text-sm text-muted-foreground hover:text-foreground"
+              className="rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-800"
             >
               历史
             </Link>
             {taskId && (
-              <span className="text-sm text-muted-foreground">
+              <span className="max-w-28 truncate text-xs text-muted-foreground" title={taskId}>
                 任务 {taskId.slice(0, 8)}…
               </span>
             )}
             {task && <TaskStatusBadge status={task.status} />}
           </div>
           {taskId && (
-            <nav className="flex gap-1" aria-label="任务导航">
+            <nav className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1" aria-label="任务导航">
               {NAV.map(({ to, label }) => (
                 <Link
                   key={to}
                   to={`/tasks/${taskId}/${to}`}
                   className={cn(
-                    'rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                    'rounded-md border border-transparent px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-800',
                   )}
                 >
                   {label}
@@ -53,7 +53,7 @@ export function AppLayout() {
           )}
         </div>
       </header>
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 pb-24">
         <Outlet />
       </main>
     </div>

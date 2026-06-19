@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as Collapsible from '@radix-ui/react-collapsible'
-import { ChevronDown, History, PlayCircle, Sparkles } from 'lucide-react'
+import { ChevronDown, History, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useCreateTask, useGeneratePlan } from '@/api/tasks'
@@ -98,14 +98,18 @@ export function TaskCreatePage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pt-8 lg:pt-12">
+    <div className="mo-page-shell max-w-6xl pt-8 lg:pt-12">
       <StatusGuide
         title={guide.title}
         whatNow={guide.whatNow}
         blockReason={formError ?? undefined}
         primaryAction={
           !formError
-            ? { label: guide.primaryAction, onClick: requestSubmit }
+            ? {
+                label: isSubmitting ? '提交中…' : guide.primaryAction,
+                onClick: requestSubmit,
+                disabled: isSubmitting,
+              }
             : undefined
         }
       />
@@ -114,7 +118,7 @@ export function TaskCreatePage() {
         <PageLayout className="min-w-0">
           <PrimaryWorkArea>
             <Card className="overflow-hidden border-blue-100/80 shadow-xl shadow-slate-900/10">
-            <CardHeader className="border-b bg-gradient-to-r from-blue-50 via-white to-emerald-50">
+            <CardHeader className="border-b border-[var(--mo-line)] bg-background/64">
               <div className="flex items-start gap-3">
                 <div className="rounded-md bg-blue-600 p-2 text-white">
                   <Sparkles className="h-4 w-4" aria-hidden />
@@ -251,14 +255,8 @@ export function TaskCreatePage() {
               <PageCommandBar
                 position="inline"
                 className="mt-6 border-blue-100 bg-blue-50/60 shadow-none"
-                title="准备好后开始规划"
-                description="提交后只生成计划，执行调研仍需要你在计划页批准。"
-                primary={{
-                  label: isSubmitting ? '提交中…' : guide.primaryAction,
-                  onClick: requestSubmit,
-                  disabled: isSubmitting,
-                  icon: <PlayCircle className="h-4 w-4" aria-hidden />,
-                }}
+                title="辅助操作"
+                description="创建任务请使用页面顶部主按钮；提交后只生成计划，执行调研仍需要你批准。"
                 secondary={[
                   { label: '加载示例', href: '/history', icon: <Sparkles className="h-4 w-4" aria-hidden /> },
                   { label: CTA_COPY.backToHistory, href: '/history', icon: <History className="h-4 w-4" aria-hidden /> },

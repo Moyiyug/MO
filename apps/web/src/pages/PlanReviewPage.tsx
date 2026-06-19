@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
@@ -22,7 +22,7 @@ import {
   SecondaryNavigation,
 } from '@/components/common/InfoHierarchy'
 import { SectionTabs } from '@/components/common/SectionTabs'
-import { NextActionBar } from '@/components/common/NextActionBar'
+import { PageCommandBar } from '@/components/common/PageCommandBar'
 import { EvidenceSummary } from '@/components/common/EvidenceSummary'
 import { Button } from '@/components/ui/button'
 import {
@@ -84,8 +84,9 @@ export function PlanReviewPage() {
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReplan, setConfirmReplan] = useState(false)
   const [replanReason, setReplanReason] = useState('')
-  const [selectedRepoUrls, setSelectedRepoUrls] = useState<string[]>([])
-  const [syncedPlanId, setSyncedPlanId] = useState<string | null>(null)
+  const [selectedRepoUrlsByPlanId, setSelectedRepoUrlsByPlanId] = useState<
+    Record<string, string[]>
+  >({})
   const [activeSection, setActiveSection] = useState('steps')
 
   const task = taskQuery.data
@@ -94,14 +95,7 @@ export function PlanReviewPage() {
   useEffect(() => {
     if (!plan) return
     initFromPlan(plan)
-    // 计划变化时用服务端的选中状态重置本地草稿
-    if (plan.id !== syncedPlanId) {
-      setSyncedPlanId(plan.id)
-      setSelectedRepoUrls(
-        plan.repo_candidates.filter((c) => c.selected).map((c) => c.repo_url),
-      )
-    }
-  }, [plan, initFromPlan, syncedPlanId])
+  }, [plan, initFromPlan])
 
   const isWaitingUser =
     task && WAITING_USER_TASK_STATUSES.includes(task.status)
@@ -130,6 +124,12 @@ export function PlanReviewPage() {
   const rubricValid = isRubricValid(rubricWeights)
 
   const candidates = repoCandidatesQuery.data?.candidates ?? plan?.repo_candidates ?? []
+  const serverSelectedRepoUrls = useMemo(
+    () => plan?.repo_candidates.filter((c) => c.selected).map((c) => c.repo_url) ?? [],
+    [plan],
+  )
+  const selectedRepoUrls =
+    plan ? selectedRepoUrlsByPlanId[plan.id] ?? serverSelectedRepoUrls : []
   const discoveryNote = repoCandidatesQuery.data?.discovery_note ?? null
   const hasCandidates = candidates.length > 0
   const noRepoSelected = (task?.repo_urls?.length ?? 0) === 0
@@ -143,23 +143,36 @@ export function PlanReviewPage() {
     blockReason = guide.blockReasons.noRepoSelected
   } else if (isWaitingUser && missingClarifications.length > 0) {
     blockReason = guide.blockReasons.unansweredRequired
-  } else if (needsApproval) {
-    blockReason = guide.blockReasons.waitingApproval
+  } else if (needsApproval && !rubricValid) {
+    blockReason = '评分权重之和必须约等于 1.0'
   }
 
   const primaryAction = !blockReason && needsApproval
-    ? { label: CTA_COPY.approve, onClick: () => setConfirmApprove(true) }
+    ? {
+        label: CTA_COPY.approve,
+        onClick: () => setConfirmApprove(true),
+        disabled: approvePlan.isPending,
+      }
     : !blockReason && needsClarification
-      ? { label: '提交澄清', onClick: handleSubmitClarifications }
+      ? {
+          label: '提交澄清',
+          onClick: handleSubmitClarifications,
+          disabled: submitClarifications.isPending,
+        }
       : !blockReason && isApproved
         ? { label: '查看工作流', href: `/tasks/${taskId}/workflow` }
         : undefined
 
   // ── helpers ────────────────────────────────────────────────
   const toggleRepo = (url: string) => {
-    setSelectedRepoUrls((prev) =>
-      prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url],
-    )
+    if (!plan) return
+    setSelectedRepoUrlsByPlanId((prev) => {
+      const current = prev[plan.id] ?? serverSelectedRepoUrls
+      const next = current.includes(url)
+        ? current.filter((u) => u !== url)
+        : [...current, url]
+      return { ...prev, [plan.id]: next }
+    })
   }
 
   async function handleConfirmSelection() {
@@ -278,7 +291,7 @@ export function PlanReviewPage() {
       emptyDescription="计划尚未生成，请返回创建页或触发生成。"
     >
       {task && plan && (
-        <div className="space-y-6 max-w-7xl mx-auto">
+        <div className="mo-page-shell">
           {/* ── 状态引导 ───────────────────────────── */}
           <StatusGuide
             title={guide.title}
@@ -288,6 +301,20 @@ export function PlanReviewPage() {
             severity={blockReason ? 'warning' : needsApproval ? 'info' : undefined}
             statusBadge={<TaskStatusBadge status={task.status} />}
             hint={!blockReason && task?.status === 'PLANNING' ? '计划正在生成中，请稍候...' : undefined}
+          />
+
+          <PageCommandBar
+            position="top"
+            title="计划工具"
+            description="这些操作不会绕过审批；真正推进任务请使用上方主按钮。"
+            secondary={[
+              ...(canRegeneratePlan
+                ? [{ label: '重新生成', onClick: handleRegenerate }]
+                : []),
+              ...(canReplan
+                ? [{ label: '重规划', onClick: () => setConfirmReplan(true) }]
+                : []),
+            ]}
           />
 
           {/* ── 主布局 ────────────────────────────── */}
@@ -357,7 +384,7 @@ export function PlanReviewPage() {
                         可启用/禁用步骤；高风险步骤执行时将再次拦截审批。
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="max-h-[32rem] space-y-3 overflow-y-auto pr-3">
                       {plan.proposed_steps.map((step) => {
                         const enabled = !disabledStepIds.has(step.id)
                         const isHighRisk =
@@ -374,9 +401,9 @@ export function PlanReviewPage() {
                             )}
                           >
                             <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div>
+                              <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-medium">{step.title}</span>
+                                  <span className="font-medium break-words">{step.title}</span>
                                   {isHighRisk && (
                                     <AlertTriangle
                                       className="h-4 w-4 text-amber-600"
@@ -384,7 +411,7 @@ export function PlanReviewPage() {
                                     />
                                   )}
                                 </div>
-                                <p className="mt-1 text-sm text-muted-foreground">
+                                <p className="mt-1 break-words text-sm text-muted-foreground">
                                   {step.description}
                                 </p>
                               </div>
@@ -434,7 +461,7 @@ export function PlanReviewPage() {
                       根据研究目标自动发现的高相关热门仓库。请勾选 1–5 个作为调研对象。
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="max-h-[32rem] space-y-3 overflow-y-auto pr-3">
                     {discoveryNote && (
                       <div className="rounded-md border border-blue-400 bg-blue-50 p-2 text-sm text-blue-800">
                         {discoveryNote}
@@ -489,7 +516,7 @@ export function PlanReviewPage() {
                               </p>
                             )}
                             {c.relevance_reason && (
-                              <p className="text-xs text-muted-foreground">
+                              <p className="break-words text-xs text-muted-foreground">
                                 理由：{c.relevance_reason}
                               </p>
                             )}
@@ -527,7 +554,7 @@ export function PlanReviewPage() {
                       {rubricWeightsSum(rubricWeights).toFixed(2)}）
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="grid gap-3 sm:grid-cols-2">
+                  <CardContent className="grid max-h-[28rem] gap-3 overflow-y-auto pr-3 sm:grid-cols-2">
                     {Object.entries(rubricWeights).map(([key, value]) => (
                       <div key={key} className="space-y-1">
                         <Label htmlFor={`rubric-${key}`}>{key}</Label>
@@ -600,51 +627,17 @@ export function PlanReviewPage() {
 
                 {/* 证据摘要（如果有） */}
                 {plan.proposed_steps.some(
-                  (s) => (s as any).evidence_ids?.length > 0,
+                  (s) => getStepEvidenceIds(s).length > 0,
                 ) && (
                   <EvidenceSummary
                     evidenceIds={
-                      plan.proposed_steps.flatMap(
-                        (s) => (s as any).evidence_ids ?? [],
-                      ) as string[]
+                      plan.proposed_steps.flatMap(getStepEvidenceIds)
                     }
                   />
                 )}
               </div>
             </SupportingPanel>
           </PageLayout>
-
-          {/* ── 操作栏 ────────────────────────────── */}
-          <NextActionBar
-            primary={
-              needsApproval
-                ? {
-                    label: CTA_COPY.approve,
-                    onClick: () => setConfirmApprove(true),
-                    disabled: !rubricValid || approvePlan.isPending || noRepoSelected,
-                  }
-                : needsClarification
-                  ? {
-                      label: '提交澄清',
-                      onClick: handleSubmitClarifications,
-                      disabled:
-                        submitClarifications.isPending ||
-                        missingClarifications.length > 0,
-                    }
-                  : isApproved
-                    ? { label: '查看工作流', href: `/tasks/${taskId}/workflow` }
-                    : undefined
-            }
-            secondary={[
-              ...(canRegeneratePlan
-                ? [{ label: '重新生成', onClick: handleRegenerate }]
-                : []),
-              ...(canReplan
-                ? [{ label: '重规划', onClick: () => setConfirmReplan(true) }]
-                : []),
-            ]}
-            backTo={{ label: CTA_COPY.backToHistory, href: '/history' }}
-          />
 
           {/* ── 次级导航 ────────────────────────── */}
           <SecondaryNavigation
@@ -733,4 +726,14 @@ export function PlanReviewPage() {
 
 function rubricWeightsSum(weights: Record<string, number>): number {
   return Object.values(weights).reduce((a, b) => a + b, 0)
+}
+
+function getStepEvidenceIds(step: unknown): string[] {
+  if (typeof step !== 'object' || step === null || !('evidence_ids' in step)) {
+    return []
+  }
+  const ids = (step as { evidence_ids?: unknown }).evidence_ids
+  return Array.isArray(ids)
+    ? ids.filter((id): id is string => typeof id === 'string')
+    : []
 }

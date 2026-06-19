@@ -56,7 +56,11 @@ export function TaskStatusBadge({
   return (
     <Badge
       variant="outline"
-      className={cn('border font-normal inline-flex items-center gap-1', style, className)}
+      className={cn(
+        'inline-flex items-center gap-1 border font-normal shadow-[0_1px_0_rgba(255,255,255,0.72)_inset]',
+        style,
+        className,
+      )}
       aria-label={`任务状态：${label}`}
     >
       {icon}
@@ -87,7 +91,11 @@ export function NodeStatusBadge({
   return (
     <Badge
       variant="outline"
-      className={cn('border font-normal inline-flex items-center gap-1', style, className)}
+      className={cn(
+        'inline-flex items-center gap-1 border font-normal shadow-[0_1px_0_rgba(255,255,255,0.72)_inset]',
+        style,
+        className,
+      )}
       aria-label={`节点状态：${label}`}
     >
       {icon}

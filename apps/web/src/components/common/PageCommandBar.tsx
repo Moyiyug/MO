@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
 
 import { Button } from '@/components/ui/button'
@@ -7,6 +8,8 @@ import { cn } from '@/lib/utils'
 export interface CommandAction {
   label: string
   onClick?: () => void
+  /** 站内路由，使用 React Router Link，避免整页刷新 */
+  to?: string
   href?: string
   disabled?: boolean
   destructive?: boolean
@@ -22,12 +25,29 @@ export interface PageCommandBarProps {
   className?: string
 }
 
+function isInternalHref(href: string | undefined): href is string {
+  return Boolean(href && href.startsWith('/'))
+}
+
 function CommandButton({ action, variant }: { action: CommandAction; variant: 'primary' | 'secondary' }) {
   const buttonVariant = action.destructive
     ? 'destructive'
     : variant === 'primary'
       ? 'default'
       : 'outline'
+
+  const target = action.to ?? (isInternalHref(action.href) ? action.href : undefined)
+
+  if (target) {
+    return (
+      <Button size="sm" variant={buttonVariant} disabled={action.disabled} asChild>
+        <Link to={target}>
+          {action.icon}
+          {action.label}
+        </Link>
+      </Button>
+    )
+  }
 
   if (action.href) {
     return (
@@ -69,7 +89,7 @@ export function PageCommandBar({
       animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: 'easeOut' }}
       className={cn(
-        'z-30 rounded-lg border bg-background/94 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/82',
+        'mo-blueprint-panel z-30 rounded-lg border bg-background/88 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/76',
         position === 'top' && 'sticky top-20 shadow-md shadow-slate-900/10',
         position === 'inline' && 'relative',
         'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
@@ -80,7 +100,11 @@ export function PageCommandBar({
     >
       {(title || description) && (
         <div className="min-w-0">
-          {title && <p className="text-sm font-medium">{title}</p>}
+          {title && (
+            <p className="text-sm font-medium tracking-[0.01em] text-blue-950">
+              {title}
+            </p>
+          )}
           {description && (
             <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
           )}

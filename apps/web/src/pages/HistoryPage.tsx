@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -87,12 +87,6 @@ export function HistoryPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const isEmpty = total === 0
 
-  useEffect(() => {
-    if (page > 0 && taskPage && taskPage.items.length === 0) {
-      setPage((p) => Math.max(0, p - 1))
-    }
-  }, [page, taskPage])
-
   const handleSeedDemo = async () => {
     try {
       const created = await seedDemo.mutateAsync()
@@ -118,6 +112,9 @@ export function HistoryPage() {
     try {
       await deleteTask.mutateAsync(deleteTarget.task_id)
       toast.success('历史记录已删除')
+      if (tasks.length === 1 && page > 0) {
+        setPage((p) => Math.max(0, p - 1))
+      }
       setDeleteTarget(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '删除失败')
@@ -142,7 +139,7 @@ export function HistoryPage() {
   const guide = PAGE_GUIDE_COPY.history
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="mo-page-shell">
       <StatusGuide
         title={guide.title}
         whatNow={isEmpty ? guide.empty : guide.whatNow}
@@ -162,7 +159,6 @@ export function HistoryPage() {
         position="top"
         title={isEmpty ? '还没有历史任务' : `共 ${total} 条历史任务`}
         description="每页最多 10 条；执行中的任务不会被批量删除。"
-        primary={{ label: CTA_COPY.create, href: '/' }}
         secondary={[
           { label: CTA_COPY.loadDemo, onClick: () => void handleSeedDemo() },
           {
@@ -231,7 +227,7 @@ export function HistoryPage() {
                           <div className="min-w-0 flex-1 space-y-1">
                             <Link
                               to={taskDetailPath(task)}
-                              className="font-medium hover:underline"
+                              className="line-clamp-2 break-words font-medium hover:underline"
                             >
                               {task.goal}
                             </Link>

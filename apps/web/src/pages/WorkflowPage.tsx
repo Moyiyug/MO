@@ -28,6 +28,7 @@ import {
 import { SupportingDrawer } from '@/components/common/SupportingDrawer'
 import { EvidenceSummary } from '@/components/common/EvidenceSummary'
 import { PageCommandBar } from '@/components/common/PageCommandBar'
+import { SectionRail } from '@/components/common/visual'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -182,6 +183,9 @@ function WorkflowCanvas() {
   const waitingStep = plan?.proposed_steps.find(
     (s) => nodeStatuses[s.node_id] === 'waiting_user',
   )
+  const failedStep = plan?.proposed_steps.find(
+    (s) => nodeStatuses[s.node_id] === 'failed',
+  )
   const isPlanWaitingUser =
     task && WAITING_USER_TASK_STATUSES.includes(task.status)
 
@@ -218,6 +222,10 @@ function WorkflowCanvas() {
     blockReason = '计划阶段尚未完成，请返回计划审阅页完成澄清或批准。'
   } else if (waitingStep) {
     blockReason = `节点「${waitingStep.title}」需要你的审批才能继续。`
+  } else if (task?.status === 'FAILED') {
+    blockReason = failedStep
+      ? `节点「${failedStep.title}」执行失败，请查看详情日志。`
+      : '任务执行失败，请查看节点日志或返回计划页重规划。'
   }
 
   const nodeTypeCopy = selectedStep ? NODE_TYPE_COPY[selectedStep.tool] : undefined
@@ -235,11 +243,12 @@ function WorkflowCanvas() {
       emptyAction={{ label: '返回计划审阅', href: `/tasks/${taskId}/plan` }}
     >
       {plan && task && (
-        <div className="space-y-6 max-w-7xl mx-auto">
+        <div className="mo-page-shell">
           <StatusGuide
             title={guide.title}
             whatNow={guide.whatNow}
             blockReason={blockReason}
+            severity={task.status === 'FAILED' ? 'blocked' : blockReason ? 'warning' : undefined}
             primaryAction={
               isPlanWaitingUser
                 ? { label: '返回计划审阅', href: `/tasks/${taskId}/plan` }
@@ -248,9 +257,18 @@ function WorkflowCanvas() {
                       label: guide.primaryAction,
                       onClick: () => waitingStep && openDrawer(waitingStep),
                     }
+                  : task.status === 'FAILED'
+                    ? { label: '返回计划', href: `/tasks/${taskId}/plan` }
                   : task.status === 'PLAN_APPROVED'
                     ? { label: '开始执行', onClick: handleStart }
+                    : task.status === 'REPORT_DRAFT' || task.status === 'REVIEW_REQUIRED' || task.status === 'DONE'
+                      ? { label: CTA_COPY.viewReport, href: `/tasks/${taskId}/report` }
                     : undefined
+            }
+            secondaryActions={
+              task.status === 'FAILED'
+                ? [{ label: CTA_COPY.backToHistory, href: '/history' }]
+                : undefined
             }
             statusBadge={<TaskStatusBadge status={task.status} />}
           />
@@ -282,19 +300,21 @@ function WorkflowCanvas() {
 
             {/* 辅助面板：执行进度摘要 */}
             <SupportingPanel title="执行状态">
-              <div className="space-y-2">
-                {plan.proposed_steps.map((s) => {
-                  const status = nodeStatuses[s.node_id] ?? 'pending'
-                  return (
-                    <div key={s.node_id} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="truncate">{s.title}</span>
-                      <NodeStatusBadge
-                        status={status}
-                        className="flex-shrink-0"
-                      />
-                    </div>
-                  )
-                })}
+              <div className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+                <SectionRail
+                  items={plan.proposed_steps.map((s) => {
+                    const status = nodeStatuses[s.node_id] ?? 'pending'
+                    return {
+                      id: s.node_id,
+                      label: s.title,
+                      status,
+                      description: (
+                        <NodeStatusBadge status={status} className="mt-1" />
+                      ),
+                      onClick: () => openDrawer(s),
+                    }
+                  })}
+                />
               </div>
               {selectedEvent?.evidence_ids && selectedEvent.evidence_ids.length > 0 && (
                 <div className="mt-4">
@@ -307,21 +327,11 @@ function WorkflowCanvas() {
           <PageCommandBar
             position="top"
             title="工作流操作"
-            description="等待确认时需要先处理审批节点，完成后可查看报告。"
-            primary={
-              task.status === 'PLAN_APPROVED'
-                ? { label: '开始执行', onClick: handleStart }
-                : waitingStep
-                  ? {
-                      label: guide.primaryAction,
-                      onClick: () => waitingStep && openDrawer(waitingStep),
-                    }
-                  : task.status === 'REPORT_DRAFT' || task.status === 'DONE'
-                    ? { label: CTA_COPY.viewReport, href: `/tasks/${taskId}/report` }
-                    : undefined
-            }
+            description="主行动在页面顶部；这里保留跨页和恢复入口。"
             secondary={[
+              { label: '重规划', href: `/tasks/${taskId}/plan` },
               { label: '返回计划', href: `/tasks/${taskId}/plan` },
+              { label: CTA_COPY.backToHistory, href: '/history' },
             ]}
           />
 
@@ -343,56 +353,70 @@ function WorkflowCanvas() {
           >
             {selectedStep && (
               <div className="space-y-4">
-                <p>{selectedStep.description}</p>
+                <section className="space-y-2 rounded-md border bg-muted/30 p-3">
+                  <p className="font-medium">步骤说明</p>
+                  <p className="break-words text-muted-foreground">{selectedStep.description}</p>
+                </section>
                 {nodeStatuses[selectedStep.node_id] && (
                   <NodeStatusBadge status={nodeStatuses[selectedStep.node_id]} />
                 )}
-                <dl className="grid grid-cols-2 gap-2">
+                <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2 rounded-md border p-3">
                   <dt className="text-muted-foreground">工具</dt>
-                  <dd title={selectedStep.tool}>
+                  <dd className="min-w-0 break-words" title={selectedStep.tool}>
                     {nodeTypeCopy?.label ?? selectedStep.tool}
                   </dd>
                   <dt className="text-muted-foreground">风险</dt>
-                  <dd title={selectedStep.risk_level}>
+                  <dd className="min-w-0 break-words" title={selectedStep.risk_level}>
                     {riskCopy?.label ?? selectedStep.risk_level}
                   </dd>
                   <dt className="text-muted-foreground">需审批</dt>
                   <dd>{selectedStep.requires_approval ? '是' : '否'}</dd>
                 </dl>
                 {selectedEvent?.input_summary && (
-                  <div>
+                  <section className="space-y-1 rounded-md border p-3">
                     <p className="font-medium">输入摘要</p>
-                    <p className="text-muted-foreground">{selectedEvent.input_summary}</p>
-                  </div>
+                    <p className="break-words text-muted-foreground">{selectedEvent.input_summary}</p>
+                  </section>
                 )}
                 {selectedEvent?.output_summary && (
-                  <div>
+                  <section className="space-y-1 rounded-md border p-3">
                     <p className="font-medium">输出摘要</p>
-                    <p className="text-muted-foreground">{selectedEvent.output_summary}</p>
-                  </div>
+                    <p className="break-words text-muted-foreground">{selectedEvent.output_summary}</p>
+                  </section>
                 )}
                 {selectedEvent && (
-                  <EvidenceSummary
-                    evidenceIds={selectedEvent.evidence_ids ?? []}
-                  />
+                  <section className="rounded-md border p-3">
+                    <p className="mb-2 font-medium">证据</p>
+                    <EvidenceSummary
+                      evidenceIds={selectedEvent.evidence_ids ?? []}
+                    />
+                  </section>
                 )}
                 {selectedEvent?.logs && selectedEvent.logs.length > 0 && (
-                  <div>
+                  <section className="rounded-md border p-3">
                     <p className="font-medium">日志</p>
-                    <ul className="mt-1 list-inside list-disc text-muted-foreground">
+                    <ul className="mt-2 max-h-48 list-inside list-disc space-y-1 overflow-y-auto pr-1 text-muted-foreground">
                       {selectedEvent.logs.map((log) => (
-                        <li key={log}>{log}</li>
+                        <li key={log} className="break-words">{log}</li>
                       ))}
                     </ul>
-                  </div>
+                  </section>
                 )}
                 {selectedEvent?.error_message && (
-                  <p className="text-destructive">{selectedEvent.error_message}</p>
+                  <section className="rounded-md border border-red-300 bg-red-50 p-3">
+                    <p className="font-medium text-red-900">错误摘要</p>
+                    <p className="mt-1 max-h-40 overflow-y-auto break-words text-red-800">
+                      {selectedEvent.error_message}
+                    </p>
+                  </section>
                 )}
                 {selectedEvent?.next_action && (
-                  <p className="rounded-md bg-amber-50 p-2 text-amber-900">
-                    {selectedEvent.next_action}
-                  </p>
+                  <section className="rounded-md border border-amber-300 bg-amber-50 p-3">
+                    <p className="font-medium text-amber-950">下一步</p>
+                    <p className="mt-1 break-words text-amber-900">
+                      {selectedEvent.next_action}
+                    </p>
+                  </section>
                 )}
                 {nodeStatuses[selectedStep.node_id] === 'waiting_user' && (
                   <div className="flex gap-2 pt-2 border-t">

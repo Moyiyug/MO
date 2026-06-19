@@ -23,7 +23,8 @@
  *   </div>
  */
 
-import { useState, type ReactNode } from 'react'
+import { Children, isValidElement, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -100,18 +101,43 @@ export function PageLayout({
   ratio = '3:1',
   className,
 }: PageLayoutProps) {
-  // children 方式：兼容旧版 JSX 结构
-  const content = primary ?? children
+  // children 方式：自动识别旧版 JSX 结构里的主区和辅助侧栏。
+  const childItems = Children.toArray(children)
+  const primaryChildren: ReactNode[] = []
+  const supportingChildren: ReactNode[] = []
+  const otherChildren: ReactNode[] = []
 
-  if (!supporting) {
-    return <div className={cn('space-y-6', className)}>{content}</div>
+  for (const child of childItems) {
+    if (isValidElement(child) && child.type === PrimaryWorkArea) {
+      primaryChildren.push(child)
+    } else if (isValidElement(child) && child.type === SupportingPanel) {
+      supportingChildren.push(child)
+    } else {
+      otherChildren.push(child)
+    }
+  }
+
+  const inferredPrimary =
+    primaryChildren.length > 0
+      ? primaryChildren
+      : otherChildren.length > 0
+        ? otherChildren
+        : children
+  const inferredSupporting =
+    supportingChildren.length > 0 ? supportingChildren : undefined
+
+  const content = primary ?? inferredPrimary
+  const sideContent = supporting ?? inferredSupporting
+
+  if (!sideContent) {
+    return <div className={cn('min-w-0 space-y-6', className)}>{content}</div>
   }
 
   if (supportingPosition === 'bottom') {
     return (
-      <div className={cn('space-y-6', className)}>
-        <div>{content}</div>
-        <div>{supporting}</div>
+      <div className={cn('min-w-0 space-y-6', className)}>
+        <div className="min-w-0">{content}</div>
+        <div className="min-w-0">{sideContent}</div>
       </div>
     )
   }
@@ -121,9 +147,9 @@ export function PageLayout({
   return (
     <div className={cn('grid grid-cols-1 lg:grid-cols-4 gap-6', className)}>
       <div className={cn('space-y-6 min-w-0', cols.primary)}>{content}</div>
-      {supporting && (
+      {sideContent && (
         <aside className={cn('space-y-4 min-w-0', cols.supporting)}>
-          {supporting}
+          {sideContent}
         </aside>
       )}
     </div>
@@ -149,7 +175,7 @@ export interface PrimaryWorkAreaProps {
  */
 export function PrimaryWorkArea({ children, title, actions, className }: PrimaryWorkAreaProps) {
   return (
-    <section className={cn('space-y-4', className)} aria-label={title}>
+    <section className={cn('min-w-0 space-y-4', className)} aria-label={title}>
       {(title || actions) && (
         <div className="flex items-center justify-between gap-3 flex-wrap">
           {title && <h3 className="text-base font-medium text-foreground">{title}</h3>}
@@ -225,14 +251,14 @@ export function SupportingPanel({
 
   // ── 公共 header ───────────────────────────────────────────
   const headerMarkup = (title || technical) && (
-    <div className="flex items-center gap-2 mb-3">
+    <div className="mb-3 flex items-center gap-2">
       {title && (
-        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+        <h4 className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
           {title}
         </h4>
       )}
       {technical && (
-        <span className="text-[10px] text-muted-foreground/60 bg-muted px-1.5 py-0.5 rounded">
+        <span className="rounded border border-dashed border-blue-300/70 bg-blue-50/60 px-1.5 py-0.5 text-[10px] text-blue-800/70">
           技术详情
         </span>
       )}
@@ -241,8 +267,8 @@ export function SupportingPanel({
 
   // ── 公共样式 ──────────────────────────────────────────────
   const baseClasses = cn(
-    'rounded-lg border bg-card p-4',
-    technical && 'border-dashed border-muted-foreground/30',
+    'mo-blueprint-panel min-w-0 overflow-hidden rounded-lg border p-4 break-words',
+    technical && 'mo-technical-surface border-dashed border-blue-300/80',
     className,
   )
 
@@ -255,7 +281,7 @@ export function SupportingPanel({
         aria-label={title ?? activeTab.label}
       >
         {/* Tab 条 */}
-        <div className="flex border-b" role="tablist">
+        <div className="flex overflow-x-auto border-b bg-background/34" role="tablist">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -266,7 +292,7 @@ export function SupportingPanel({
                 'px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
                 tab.id === activeTabId
                   ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30',
+                  : 'border-transparent text-muted-foreground hover:text-blue-900 hover:border-blue-200',
               )}
             >
               {tab.label}
@@ -274,7 +300,9 @@ export function SupportingPanel({
           ))}
         </div>
         {/* Tab 内容 */}
-        <div className="p-4">{activeTab.content}</div>
+        <div className="max-h-[min(70svh,38rem)] min-w-0 overflow-y-auto p-4 pr-3">
+          {activeTab.content}
+        </div>
       </section>
     )
   }
@@ -300,7 +328,11 @@ export function SupportingPanel({
             <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden />
           )}
         </button>
-        {!collapsed && <div className="mt-3 text-sm">{children}</div>}
+        {!collapsed && (
+          <div className="mt-3 max-h-[min(70svh,38rem)] min-w-0 overflow-y-auto pr-1 text-sm">
+            {children}
+          </div>
+        )}
       </section>
     )
   }
@@ -312,7 +344,9 @@ export function SupportingPanel({
       aria-label={title ?? (technical ? '技术详情' : '辅助信息')}
     >
       {headerMarkup}
-      <div className="text-sm">{children}</div>
+      <div className="max-h-[min(70svh,38rem)] min-w-0 overflow-y-auto pr-1 text-sm">
+        {children}
+      </div>
     </section>
   )
 }
@@ -321,6 +355,8 @@ export function SupportingPanel({
 
 export interface NavItem {
   label: string
+  /** 站内路由，使用 React Router Link，避免整页刷新 */
+  to?: string
   href?: string
   onClick?: () => void
   /** 高亮当前活跃项 */
@@ -335,6 +371,45 @@ export interface SecondaryNavigationProps {
   className?: string
 }
 
+function isInternalHref(href: string | undefined): href is string {
+  return Boolean(href && href.startsWith('/'))
+}
+
+function NavigationLink({
+  item,
+  className,
+}: {
+  item: NavItem
+  className: string
+}) {
+  const target = item.to ?? (isInternalHref(item.href) ? item.href : undefined)
+
+  if (target) {
+    return (
+      <Link to={target} className={className}>
+        {item.icon}
+        {item.label}
+      </Link>
+    )
+  }
+
+  if (item.href) {
+    return (
+      <a href={item.href} className={className}>
+        {item.icon}
+        {item.label}
+      </a>
+    )
+  }
+
+  return (
+    <button type="button" onClick={item.onClick} className={className}>
+      {item.icon}
+      {item.label}
+    </button>
+  )
+}
+
 /**
  * SecondaryNavigation — 次级导航
  *
@@ -343,61 +418,27 @@ export interface SecondaryNavigationProps {
  */
 export function SecondaryNavigation({ items, backTo, className }: SecondaryNavigationProps) {
   return (
-    <nav className={cn('flex items-center justify-between gap-3 pt-4 border-t', className)} aria-label="次级导航">
+    <nav className={cn('mo-blueprint-panel flex min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2', className)} aria-label="次级导航">
       <div className="flex items-center gap-1 flex-wrap">
         {backTo && (
-          backTo.href ? (
-            <a
-              href={backTo.href}
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
-            >
-              {backTo.icon}
-              {backTo.label}
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={backTo.onClick}
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
-            >
-              {backTo.icon}
-              {backTo.label}
-            </button>
-          )
+          <NavigationLink
+            item={backTo}
+            className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-blue-50/70 hover:text-blue-900"
+          />
         )}
       </div>
       <div className="flex items-center gap-1 flex-wrap">
         {items.map((item, idx) =>
-          item.href ? (
-            <a
-              key={idx}
-              href={item.href}
-              className={cn(
-                'inline-flex items-center gap-1.5 text-sm px-2 py-1 rounded transition-colors',
-                item.active
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-              )}
-            >
-              {item.icon}
-              {item.label}
-            </a>
-          ) : (
-            <button
-              key={idx}
-              type="button"
-              onClick={item.onClick}
-              className={cn(
-                'inline-flex items-center gap-1.5 text-sm px-2 py-1 rounded transition-colors',
-                item.active
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-              )}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ),
+          <NavigationLink
+            key={idx}
+            item={item}
+            className={cn(
+              'inline-flex items-center gap-1.5 text-sm px-2 py-1 rounded transition-colors',
+              item.active
+                ? 'bg-primary/10 text-primary font-medium'
+                : 'text-muted-foreground hover:text-blue-900 hover:bg-blue-50/70',
+            )}
+          />,
         )}
       </div>
     </nav>

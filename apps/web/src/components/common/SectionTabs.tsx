@@ -45,7 +45,13 @@ export function SectionTabs({
   if (tabs.length === 0) return null
 
   return (
-    <div className={cn('flex border-b', className)} role="tablist">
+    <div
+      className={cn(
+        'flex overflow-x-auto rounded-lg border bg-background/45 p-1 shadow-[0_1px_0_rgba(255,255,255,0.72)_inset]',
+        className,
+      )}
+      role="tablist"
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -54,11 +60,10 @@ export function SectionTabs({
           aria-selected={tab.id === activeTab}
           onClick={() => onTabChange(tab.id)}
           className={cn(
-            'inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors',
-            'border-b-2 -mb-px',
+            'inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors',
             tab.id === activeTab
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30',
+              ? 'border-blue-300 bg-blue-50/90 text-blue-900 shadow-sm'
+              : 'border-transparent text-muted-foreground hover:border-blue-200 hover:bg-blue-50/50 hover:text-blue-900',
           )}
         >
           {tab.label}

@@ -48,7 +48,10 @@ export function ComparisonPage() {
   const recompute = useRecomputeWeights()
   const [weights, setWeights] = useState<Record<string, number> | null>(null)
 
-  const activeWeights = weights ?? matrix?.weights ?? {}
+  const activeWeights = useMemo(
+    () => weights ?? matrix?.weights ?? {},
+    [weights, matrix?.weights],
+  )
 
   const weightSum = useMemo(
     () => Object.values(activeWeights).reduce((a, b) => a + b, 0),
@@ -103,7 +106,7 @@ export function ComparisonPage() {
       emptyAction={{ label: '查看执行进度', href: `/tasks/${taskId}/workflow` }}
     >
       {matrix && (
-        <div className="space-y-6 max-w-7xl mx-auto">
+        <div className="mo-page-shell">
           <StatusGuide
             title={guide.title}
             whatNow={guide.whatNow}
@@ -114,7 +117,6 @@ export function ComparisonPage() {
             position="top"
             title="对比结果可重新加权"
             description={`当前权重总和 ${weightSum.toFixed(2)}，需等于 1.00 才能重算。`}
-            primary={{ label: CTA_COPY.viewReport, href: `/tasks/${taskId}/report` }}
             secondary={[
               { label: CTA_COPY.viewWorkflow, href: `/tasks/${taskId}/workflow` },
               {
@@ -134,8 +136,8 @@ export function ComparisonPage() {
                   <ol className="space-y-3 text-sm">
                     {matrix.rankings.map((r, index) => (
                       <li key={r.repo_url} className="rounded-md border bg-muted/25 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="font-medium">
+                        <div className="flex min-w-0 items-center justify-between gap-3">
+                          <span className="min-w-0 break-words font-medium">
                             {index + 1}. {r.repo_name}
                           </span>
                           <span className="font-mono text-muted-foreground">
@@ -229,7 +231,7 @@ export function ComparisonPage() {
               <Card>
                 <CardContent className="space-y-4 pt-6">
                   <h2 className="text-lg font-semibold">场景推荐</h2>
-                  <p className="text-sm">{matrix.recommendation}</p>
+                  <p className="break-words text-sm">{matrix.recommendation}</p>
                   {matrix.recommendation_evidence_ids.length > 0 && (
                     <EvidenceSummary
                       evidenceIds={matrix.recommendation_evidence_ids}
@@ -245,9 +247,9 @@ export function ComparisonPage() {
                 <Card className="border-amber-300 bg-amber-50">
                   <CardContent className="space-y-2 pt-6">
                     <h2 className="text-lg font-semibold text-amber-900">局限</h2>
-                    <ul className="list-inside list-disc text-sm text-amber-900">
+                    <ul className="list-inside list-disc space-y-1 text-sm text-amber-900">
                       {matrix.limitations.map((lim) => (
-                        <li key={lim}>{lim}</li>
+                        <li key={lim} className="break-words">{lim}</li>
                       ))}
                     </ul>
                   </CardContent>
@@ -271,7 +273,7 @@ export function ComparisonPage() {
                   权重总和需要等于 1.00 后才能重算。
                 </p>
               )}
-              <div className="space-y-3">
+              <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
                 {Object.entries(activeWeights).map(([key, val]) => (
                   <div key={key} className="space-y-1">
                     <Label htmlFor={`w-${key}`} className="text-xs">

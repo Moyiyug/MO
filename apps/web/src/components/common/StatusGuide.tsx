@@ -21,6 +21,7 @@
  */
 
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { AlertCircle, ArrowRight, CheckCircle2, HelpCircle, Info, PauseCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -33,10 +34,53 @@ export type GuideSeverity = 'info' | 'warning' | 'success' | 'blocked'
 export interface PrimaryAction {
   label: string
   onClick?: () => void
+  /** 站内路由，使用 React Router Link，避免整页刷新 */
+  to?: string
   href?: string
   disabled?: boolean
   /** 危险操作需二次确认 */
   destructive?: boolean
+}
+
+function isInternalHref(href: string | undefined): href is string {
+  return Boolean(href && href.startsWith('/'))
+}
+
+function ActionLabel({
+  action,
+  showArrow = false,
+}: {
+  action: PrimaryAction
+  showArrow?: boolean
+}) {
+  return (
+    <>
+      {action.label}
+      {showArrow && <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />}
+    </>
+  )
+}
+
+function LinkedActionContent({
+  action,
+  showArrow,
+}: {
+  action: PrimaryAction
+  showArrow?: boolean
+}) {
+  const target = action.to ?? (isInternalHref(action.href) ? action.href : undefined)
+  if (target) {
+    return (
+      <Link to={target}>
+        <ActionLabel action={action} showArrow={showArrow} />
+      </Link>
+    )
+  }
+  return (
+    <a href={action.href}>
+      <ActionLabel action={action} showArrow={showArrow} />
+    </a>
+  )
 }
 
 export interface StatusGuideProps {
@@ -65,34 +109,37 @@ export interface StatusGuideProps {
 
 // ─── 颜色 / 图标映射 ──────────────────────────────────────────────────
 
-const SEVERITY_STYLE: Record<GuideSeverity, { bg: string; border: string; accent: string; icon: ReactNode; text: string }> = {
+const SEVERITY_STYLE: Record<
+  GuideSeverity,
+  { panel: string; accent: string; icon: ReactNode; text: string; block: string }
+> = {
   info: {
-    bg: 'bg-blue-50/72',
-    border: 'border-blue-200/80',
+    panel: 'border-blue-200/80',
     accent: 'bg-blue-600',
     icon: <Info className="h-5 w-5 text-blue-600 flex-shrink-0" aria-hidden />,
-    text: 'text-blue-900',
+    text: 'text-blue-950',
+    block: 'border-blue-200 bg-blue-50/70 text-blue-900',
   },
   warning: {
-    bg: 'bg-amber-50/78',
-    border: 'border-amber-300',
+    panel: 'border-amber-300/90',
     accent: 'bg-amber-500',
     icon: <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" aria-hidden />,
-    text: 'text-amber-900',
+    text: 'text-amber-950',
+    block: 'border-amber-300 bg-amber-50/85 text-amber-900',
   },
   success: {
-    bg: 'bg-emerald-50/76',
-    border: 'border-emerald-200/90',
+    panel: 'border-emerald-200/90',
     accent: 'bg-emerald-500',
     icon: <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0" aria-hidden />,
-    text: 'text-emerald-900',
+    text: 'text-emerald-950',
+    block: 'border-emerald-200 bg-emerald-50/75 text-emerald-900',
   },
   blocked: {
-    bg: 'bg-red-50/78',
-    border: 'border-red-300',
+    panel: 'border-red-300/90',
     accent: 'bg-red-500',
     icon: <PauseCircle className="h-5 w-5 text-red-600 flex-shrink-0" aria-hidden />,
-    text: 'text-red-900',
+    text: 'text-red-950',
+    block: 'border-red-300 bg-red-50/85 text-red-900',
   },
 }
 
@@ -119,24 +166,30 @@ export function StatusGuide({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-lg border px-5 py-4 shadow-sm shadow-slate-900/5',
-        style.bg,
-        style.border,
+        'mo-blueprint-panel mo-dossier-surface relative overflow-hidden rounded-lg border px-5 py-4 shadow-sm shadow-slate-900/5',
+        severity === 'warning' && 'mo-node-waiting',
+        style.panel,
         className,
       )}
       role="status"
       aria-live="polite"
     >
-      <div className={cn('absolute inset-y-0 left-0 w-1.5', style.accent)} aria-hidden />
-      <div className="flex items-start gap-4">
+      <div className="mo-dossier-ornament" aria-hidden />
+      <div className={cn('mo-scan-line absolute inset-y-0 left-0 w-1.5', style.accent)} aria-hidden />
+      <div className="pointer-events-none absolute right-4 top-3 z-10 hidden font-mono text-[10px] uppercase tracking-[0.26em] text-muted-foreground/55 sm:block">
+        dossier
+      </div>
+      <div className="relative z-10 flex items-start gap-4">
         {/* 图标 */}
-        <div className="rounded-md bg-background/70 p-1 shadow-sm">{style.icon}</div>
+        <div className="rounded-md border border-white/70 bg-background/72 p-1.5 shadow-sm">
+          {style.icon}
+        </div>
 
         {/* 主要内容 */}
         <div className="flex-1 min-w-0">
           {/* 标题行 */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h1 className={cn('text-base font-semibold', style.text)}>
+            <h1 className={cn('text-base font-semibold tracking-[0.01em]', style.text)}>
               {title}
             </h1>
             {statusBadge}
@@ -151,10 +204,8 @@ export function StatusGuide({
           {blockReason && (
             <div
               className={cn(
-                'mt-2 flex items-start gap-2 rounded-md px-3 py-2 text-sm font-medium',
-                severity === 'blocked'
-                  ? 'bg-red-100 text-red-800'
-                  : 'bg-amber-100 text-amber-800',
+                'mt-2 flex items-start gap-2 rounded-md border px-3 py-2 text-sm font-medium shadow-[0_1px_0_rgba(255,255,255,0.72)_inset]',
+                style.block,
               )}
             >
               <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" aria-hidden />
@@ -174,17 +225,14 @@ export function StatusGuide({
           {(primaryAction || (secondaryActions && secondaryActions.length > 0)) && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               {primaryAction && (
-                primaryAction.href ? (
+                primaryAction.href || primaryAction.to ? (
                   <Button
                     size="sm"
                     variant={primaryAction.destructive ? 'destructive' : 'default'}
                     disabled={primaryAction.disabled}
                     asChild
                   >
-                    <a href={primaryAction.href}>
-                      {primaryAction.label}
-                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
-                    </a>
+                    <LinkedActionContent action={primaryAction} showArrow />
                   </Button>
                 ) : (
                   <Button
@@ -193,13 +241,12 @@ export function StatusGuide({
                     disabled={primaryAction.disabled}
                     onClick={primaryAction.onClick}
                   >
-                    {primaryAction.label}
-                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+                    <ActionLabel action={primaryAction} showArrow />
                   </Button>
                 )
               )}
               {secondaryActions?.map((action, idx) =>
-                action.href ? (
+                action.href || action.to ? (
                   <Button
                     key={idx}
                     size="sm"
@@ -207,7 +254,7 @@ export function StatusGuide({
                     disabled={action.disabled}
                     asChild
                   >
-                    <a href={action.href}>{action.label}</a>
+                    <LinkedActionContent action={action} />
                   </Button>
                 ) : (
                   <Button

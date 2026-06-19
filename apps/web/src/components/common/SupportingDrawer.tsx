@@ -122,7 +122,7 @@ export function SupportingDrawer({
     <>
       {/* 遮罩层 */}
       <div
-        className="fixed inset-0 z-40 bg-black/50 transition-opacity"
+        className="fixed inset-0 z-40 bg-slate-950/38 backdrop-blur-[2px] transition-opacity"
         aria-hidden
         onClick={onClose}
       />
@@ -135,19 +135,21 @@ export function SupportingDrawer({
         aria-label={title}
         className={cn(
           'fixed right-0 top-0 z-50 h-full w-full sm:w-96 lg:max-w-md',
-          'bg-background border-l shadow-xl',
-          'flex flex-col',
+          'mo-blueprint-panel border-l border-blue-200/80 bg-background/92 shadow-2xl shadow-slate-900/20',
+          'flex min-w-0 flex-col',
           'animate-in slide-in-from-right duration-300',
           WIDTH_CLASS[width],
           className,
         )}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between gap-2 px-5 py-4 border-b">
+        <div className="mo-subtle-field flex items-center justify-between gap-2 border-b border-[var(--mo-line)] px-5 py-4">
           <div className="flex items-center gap-2 min-w-0">
-            <h3 className="text-base font-semibold truncate">{title}</h3>
+            <h3 className="truncate text-base font-semibold tracking-wide text-[var(--mo-ink)]">
+              {title}
+            </h3>
             {technical && (
-              <span className="text-[10px] text-muted-foreground/60 bg-muted px-1.5 py-0.5 rounded flex-shrink-0">
+              <span className="flex-shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.16em] text-blue-700">
                 技术详情
               </span>
             )}
@@ -155,7 +157,7 @@ export function SupportingDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+            className="flex-shrink-0 rounded-md border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-800"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -163,7 +165,9 @@ export function SupportingDrawer({
         </div>
 
         {/* 内容区 */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 text-sm">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm break-words">
+          {children}
+        </div>
       </aside>
     </>
   )

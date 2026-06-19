@@ -22,7 +22,11 @@ export function ClaimLabel({ label, className }: ClaimLabelProps) {
   return (
     <Badge
       variant="outline"
-      className={cn('border font-normal', CLAIM_STYLES[label], className)}
+      className={cn(
+        'border font-normal shadow-[0_1px_0_rgba(255,255,255,0.72)_inset]',
+        CLAIM_STYLES[label],
+        className,
+      )}
       aria-label={`论断标签：${text}`}
     >
       {text}
