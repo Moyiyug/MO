@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import {
+  Archive,
+  ChevronLeft,
+  ChevronRight,
+  FolderGit2,
+  RotateCcw,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useSeedDemo } from '@/api/demo'
@@ -10,6 +18,7 @@ import { QueryState } from '@/components/common/QueryState'
 import { StatusGuide } from '@/components/common/StatusGuide'
 import { PageLayout, PrimaryWorkArea } from '@/components/common/InfoHierarchy'
 import { PageCommandBar } from '@/components/common/PageCommandBar'
+import { MetricChip } from '@/components/common/visual'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -65,6 +74,21 @@ function nextStepLabel(status: string): string {
   if (status === 'DONE') return '已完成'
   if (status === 'FAILED') return '执行失败'
   return ''
+}
+
+function outputLanguageLabel(task: TaskResponse): string {
+  return task.output_language === 'en' ? 'English' : '中文'
+}
+
+function permissionSummary(task: TaskResponse): string {
+  const enabled = [
+    task.permissions.allow_web_search && '联网',
+    task.permissions.allow_repo_clone && '克隆',
+    task.permissions.allow_smoke_test && '冒烟测试',
+    task.permissions.allow_dependency_install && '依赖安装',
+  ].filter(Boolean)
+
+  return enabled.length > 0 ? enabled.join(' / ') : '默认保守'
 }
 
 /** P-009 ProjectHistory — 历史任务管理 */
@@ -211,9 +235,10 @@ export function HistoryPage() {
                 isEmpty={isEmpty}
                 emptyTitle={PAGE_GUIDE_COPY.history.empty}
                 emptyDescription="创建第一个调研任务后，将在此显示。"
+                emptyAction={{ label: CTA_COPY.create, href: '/' }}
               >
                 {tasks.length > 0 && (
-                  <ul className="divide-y">
+                  <ul className="space-y-3">
                     {tasks.map((task) => {
                       const isDeletingThis =
                         deleteTask.isPending &&
@@ -222,58 +247,97 @@ export function HistoryPage() {
                       return (
                         <li
                           key={task.task_id}
-                          className="flex flex-wrap items-start justify-between gap-3 py-4 first:pt-0 last:pb-0"
+                          className="rounded-lg border bg-background/72 p-4 shadow-[var(--mo-shadow-line)] transition-colors hover:border-blue-300/80"
                         >
-                          <div className="min-w-0 flex-1 space-y-1">
-                            <Link
-                              to={taskDetailPath(task)}
-                              className="line-clamp-2 break-words font-medium hover:underline"
-                            >
-                              {task.goal}
-                            </Link>
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                              <TaskStatusBadge status={task.status} />
-                              <span>{formatDate(task.created_at)}</span>
-                              <span>{task.repo_urls.length} 个仓库</span>
-                              {nextStepLabel(task.status) && (
-                                <span className="text-primary font-medium">
-                                  {nextStepLabel(task.status)}
-                                </span>
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0 flex-1 space-y-3">
+                              <div className="flex min-w-0 gap-3">
+                                <div className="mt-0.5 hidden h-9 w-9 shrink-0 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-blue-800 sm:flex">
+                                  <Archive className="h-4 w-4" aria-hidden />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <Link
+                                    to={taskDetailPath(task)}
+                                    className="line-clamp-2 break-words font-medium hover:text-blue-800 hover:underline"
+                                  >
+                                    {task.goal}
+                                  </Link>
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <TaskStatusBadge status={task.status} />
+                                    {nextStepLabel(task.status) && (
+                                      <MetricChip
+                                        label={nextStepLabel(task.status)}
+                                        tone={
+                                          task.status === 'FAILED'
+                                            ? 'red'
+                                            : task.status === 'DONE'
+                                              ? 'green'
+                                              : 'blue'
+                                        }
+                                      />
+                                    )}
+                                    <MetricChip label={formatDate(task.created_at)} tone="slate" />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                <MetricChip
+                                  label="仓库"
+                                  value={task.repo_urls.length}
+                                  tone={task.repo_urls.length > 0 ? 'blue' : 'slate'}
+                                  icon={<FolderGit2 className="h-3.5 w-3.5" aria-hidden />}
+                                />
+                                <MetricChip label={outputLanguageLabel(task)} tone="violet" />
+                                <MetricChip
+                                  label={permissionSummary(task)}
+                                  tone={permissionSummary(task) === '默认保守' ? 'green' : 'amber'}
+                                  icon={<ShieldCheck className="h-3.5 w-3.5" aria-hidden />}
+                                />
+                                {task.template && <MetricChip label={task.template} tone="slate" />}
+                              </div>
+
+                              {isExecuting && (
+                                <p className="text-xs text-amber-700">
+                                  执行中的任务会保留现场，暂不可删除。
+                                </p>
                               )}
                             </div>
-                          </div>
-                          <div className="flex shrink-0 gap-2">
-                            {isDeletingThis ? (
-                              <Button variant="outline" size="sm" disabled>
-                                打开
+
+                            <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                              {isDeletingThis ? (
+                                <Button variant="outline" size="sm" disabled>
+                                  打开
+                                </Button>
+                              ) : (
+                                <Button variant="outline" size="sm" asChild>
+                                  <Link to={taskDetailPath(task)}>打开</Link>
+                                </Button>
+                              )}
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={rerun.isPending || isDeletingThis}
+                                onClick={() => void handleRerun(task.task_id)}
+                              >
+                                <RotateCcw className="h-4 w-4" aria-hidden />
+                                {CTA_COPY.redo}
                               </Button>
-                            ) : (
-                              <Button variant="outline" size="sm" asChild>
-                                <Link to={taskDetailPath(task)}>打开</Link>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={isDeletingThis || isExecuting}
+                                title={
+                                  isExecuting
+                                    ? DESTRUCTIVE_CONFIRM_COPY.deleteExecutingBlocked.description
+                                    : '删除历史记录'
+                                }
+                                onClick={() => setDeleteTarget(task)}
+                              >
+                                <Trash2 className="h-4 w-4" aria-hidden />
+                                {CTA_COPY.delete}
                               </Button>
-                            )}
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              disabled={rerun.isPending || isDeletingThis}
-                              onClick={() => void handleRerun(task.task_id)}
-                            >
-                              {CTA_COPY.redo}
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              disabled={isDeletingThis || isExecuting}
-                              title={
-                                isExecuting
-                                  ? DESTRUCTIVE_CONFIRM_COPY.deleteExecutingBlocked.description
-                                  : '删除历史记录'
-                              }
-                              onClick={() => setDeleteTarget(task)}
-                            >
-                              <Trash2 />
-                              {CTA_COPY.delete}
-                            </Button>
+                            </div>
                           </div>
                         </li>
                       )

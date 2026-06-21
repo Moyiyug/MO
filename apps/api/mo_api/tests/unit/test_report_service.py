@@ -84,6 +84,42 @@ def test_evidence_to_label_mapping() -> None:
     assert service._evidence_to_label(infer_item) is ClaimLabel.INFERENCE
 
 
+def test_clean_comparison_rationale_hides_partial_json() -> None:
+    assert (
+        ReportService._clean_comparison_rationale('{"score": 0.2,')
+        == "模型评分理由不完整，已按保守结果展示，需人工复核。"
+    )
+    cleaned = ReportService._clean_comparison_rationale(
+        "RepoCard保守估算：docs=1, project_type_present=1, license_present=0."
+    )
+    assert "project_type" not in cleaned
+    assert "type=1" in cleaned
+
+
+def test_clean_reference_summary_hides_raw_model_json() -> None:
+    cleaned = ReportService._clean_reference_summary(
+        '[documentation] score=0.20: {"score": 0.2,'
+    )
+    assert '{"score"' not in cleaned
+    assert "模型评分原始输出已压缩" in cleaned
+    cleaned_flags = ReportService._clean_reference_summary(
+        "license_present=0, project_type_present=1"
+    )
+    assert "license_present" not in cleaned_flags
+    assert "type=1" in cleaned_flags
+
+
+def test_strip_duplicate_section_heading() -> None:
+    markdown = "## 12. 后续步骤\n\n### 仓库验证\n- ok"
+    cleaned = ReportService._strip_duplicate_section_heading(markdown, "12. 后续步骤")
+    assert cleaned.startswith("### 仓库验证")
+    assert "## 12. 后续步骤" not in cleaned
+    assert (
+        ReportService._strip_duplicate_section_heading("正文", "12. 后续步骤")
+        == "正文"
+    )
+
+
 def test_report_claim_validator_pending_without_evidence() -> None:
     from mo_api.models.evidence import ReportClaim
 

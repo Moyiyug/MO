@@ -90,6 +90,20 @@ class ReportTable(SQLModel, table=True):
     generated_at: datetime = Field(default_factory=_utcnow)
 
 
+class ReportSectionSeedTable(SQLModel, table=True):
+    """报告章节种子持久化表。"""
+
+    __tablename__ = "report_section_seeds"
+
+    id: str = Field(primary_key=True)
+    task_id: str = Field(index=True)
+    section_key: str = Field(index=True)
+    node: str = Field(index=True)
+    seed_data: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime | None = None
+
+
 class NodeEventTable(SQLModel, table=True):
     __tablename__ = "node_events"
     __table_args__ = (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowRight } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -24,6 +24,7 @@ import {
 import { SectionTabs } from '@/components/common/SectionTabs'
 import { PageCommandBar } from '@/components/common/PageCommandBar'
 import { EvidenceSummary } from '@/components/common/EvidenceSummary'
+import { MetricChip } from '@/components/common/visual'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -55,6 +56,7 @@ import {
   STEP_TOOL_COPY,
   RISK_LEVEL_COPY,
   CTA_COPY,
+  COMPARISON_DIMENSION_COPY,
 } from '@/lib/uiCopy'
 
 /** P-002 PlanReview — 调研计划审阅 */
@@ -87,7 +89,9 @@ export function PlanReviewPage() {
   const [selectedRepoUrlsByPlanId, setSelectedRepoUrlsByPlanId] = useState<
     Record<string, string[]>
   >({})
-  const [activeSection, setActiveSection] = useState('steps')
+  const [activeSectionByPlanId, setActiveSectionByPlanId] = useState<
+    Record<string, string>
+  >({})
 
   const task = taskQuery.data
   const plan = planQuery.data
@@ -135,6 +139,25 @@ export function PlanReviewPage() {
   const noRepoSelected = (task?.repo_urls?.length ?? 0) === 0
   const selectionValid =
     selectedRepoUrls.length >= 1 && selectedRepoUrls.length <= 5
+  const highRiskSteps =
+    plan?.proposed_steps.filter(
+      (step) => step.risk_level === 'high' || step.requires_approval,
+    ) ?? []
+  const hasClarifications = (plan?.clarifying_questions.length ?? 0) > 0
+  const rubricTotal = rubricWeightsSum(rubricWeights)
+  const preferredSection =
+    missingClarifications.length > 0
+      ? 'clarify'
+      : noRepoSelected && hasCandidates
+        ? 'repos'
+        : 'steps'
+  const activeSection = plan
+    ? activeSectionByPlanId[plan.id] ?? preferredSection
+    : preferredSection
+  const setActiveSection = (section: string) => {
+    if (!plan) return
+    setActiveSectionByPlanId((prev) => ({ ...prev, [plan.id]: section }))
+  }
 
   // ── StatusGuide 推导 ───────────────────────────────────────
   const guide = PAGE_GUIDE_COPY.planReview
@@ -272,6 +295,13 @@ export function PlanReviewPage() {
   const sectionTabs = [
     { id: 'steps', label: '计划步骤', count: plan?.proposed_steps.length },
   ]
+  if (hasClarifications) {
+    sectionTabs.unshift({
+      id: 'clarify',
+      label: '澄清问题',
+      count: plan?.clarifying_questions.length,
+    })
+  }
   if (hasCandidates) {
     sectionTabs.push({ id: 'repos', label: '候选仓库', count: candidates.length })
   }
@@ -320,63 +350,118 @@ export function PlanReviewPage() {
           {/* ── 主布局 ────────────────────────────── */}
           <PageLayout ratio="3:1">
             <PrimaryWorkArea title="调研计划详情">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">批准检查清单</CardTitle>
+                  <CardDescription>
+                    这些条件决定计划是否可以进入执行；高风险步骤在执行时仍会再次审批。
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3 md:grid-cols-2">
+                  <ChecklistItem
+                    ok={!noRepoSelected}
+                    label="已确认仓库"
+                    detail={
+                      noRepoSelected
+                        ? selectedRepoUrls.length > 0
+                          ? '已勾选候选仓库，请先点击确认调研仓库写回。'
+                          : '请至少确认 1 个仓库；仓库可以来自自动候选。'
+                        : `${task.repo_urls.length} 个仓库已写回任务。`
+                    }
+                  />
+                  <ChecklistItem
+                    ok={missingClarifications.length === 0}
+                    label="必答澄清"
+                    detail={
+                      missingClarifications.length === 0
+                        ? '必答项已完成。'
+                        : `还有 ${missingClarifications.length} 个必答问题未完成。`
+                    }
+                  />
+                  <ChecklistItem
+                    ok={rubricValid}
+                    label="评分权重"
+                    detail={`当前总和 ${rubricTotal.toFixed(2)}，必须等于 1.00。`}
+                  />
+                  <ChecklistItem
+                    ok={highRiskSteps.length === 0}
+                    warning={highRiskSteps.length > 0}
+                    label="高风险步骤"
+                    detail={
+                      highRiskSteps.length > 0
+                        ? `${highRiskSteps.length} 个步骤含高风险或需审批，执行时会再次拦截。`
+                        : '未发现高风险步骤。'
+                    }
+                  />
+                </CardContent>
+              </Card>
+
               <SectionTabs
                 tabs={sectionTabs}
                 activeTab={activeSection}
                 onTabChange={setActiveSection}
               />
 
+              {activeSection === 'clarify' && (
+                <Card className="mt-2">
+                  <CardHeader>
+                    <CardTitle className="text-base">澄清问题</CardTitle>
+                    <CardDescription>
+                      先回答必填项，系统会把答案写回计划上下文后再允许批准。
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {plan.clarifying_questions.map((q) => (
+                      <div key={q.id} className="space-y-2 rounded-lg border p-3">
+                        <Label>
+                          {q.question}
+                          {q.required && (
+                            <span className="ml-1 text-destructive">*</span>
+                          )}
+                        </Label>
+                        {q.options.length > 0 ? (
+                          <select
+                            className="flex h-9 w-full rounded-md border border-input px-3 text-sm"
+                            value={clarificationAnswers[q.id] ?? ''}
+                            onChange={(e) =>
+                              setClarificationAnswer(q.id, e.target.value)
+                            }
+                            disabled={!needsClarification}
+                          >
+                            <option value="">请选择</option>
+                            {q.options.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <Input
+                            value={clarificationAnswers[q.id] ?? ''}
+                            onChange={(e) =>
+                              setClarificationAnswer(q.id, e.target.value)
+                            }
+                            disabled={!needsClarification}
+                          />
+                        )}
+                      </div>
+                    ))}
+                    {needsClarification && (
+                      <Button
+                        type="button"
+                        onClick={handleSubmitClarifications}
+                        disabled={missingClarifications.length > 0 || submitClarifications.isPending}
+                      >
+                        提交澄清
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* ── 计划步骤 tab ──────────────────── */}
               {activeSection === 'steps' && (
                 <div className="space-y-3 pt-2">
-                  {plan.clarifying_questions.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">澄清问题</CardTitle>
-                        <CardDescription>
-                          必填项未完成时无法提交澄清或批准计划。
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {plan.clarifying_questions.map((q) => (
-                          <div key={q.id} className="space-y-2 rounded-lg border p-3">
-                            <Label>
-                              {q.question}
-                              {q.required && (
-                                <span className="ml-1 text-destructive">*</span>
-                              )}
-                            </Label>
-                            {q.options.length > 0 ? (
-                              <select
-                                className="flex h-9 w-full rounded-md border border-input px-3 text-sm"
-                                value={clarificationAnswers[q.id] ?? ''}
-                                onChange={(e) =>
-                                  setClarificationAnswer(q.id, e.target.value)
-                                }
-                                disabled={!needsClarification}
-                              >
-                                <option value="">请选择</option>
-                                {q.options.map((opt) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <Input
-                                value={clarificationAnswers[q.id] ?? ''}
-                                onChange={(e) =>
-                                  setClarificationAnswer(q.id, e.target.value)
-                                }
-                                disabled={!needsClarification}
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">计划步骤</CardTitle>
@@ -473,7 +558,7 @@ export function PlanReviewPage() {
                         <label
                           key={c.repo_url}
                           className={cn(
-                            'flex cursor-pointer gap-3 rounded-lg border p-3',
+                            'flex cursor-pointer gap-3 rounded-lg border bg-background/72 p-3 shadow-[var(--mo-shadow-line)] transition-colors hover:border-blue-300',
                             checked && 'border-emerald-400 bg-emerald-50/40',
                           )}
                         >
@@ -490,25 +575,27 @@ export function PlanReviewPage() {
                                 href={c.repo_url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="truncate font-medium text-blue-700 hover:underline"
+                                className="max-w-full truncate font-medium text-blue-700 hover:underline"
                               >
                                 {c.repo_name}
                               </a>
-                              <Badge variant="outline">★ {c.stars}</Badge>
-                              {c.language && (
-                                <Badge variant="outline">{c.language}</Badge>
-                              )}
-                              <Badge
-                                className={
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              <MetricChip label="stars" value={c.stars} tone="slate" />
+                              {c.language && <MetricChip label={c.language} tone="violet" />}
+                              <MetricChip
+                                label={
                                   c.discovered_by === 'user_seed'
-                                    ? 'bg-slate-100 text-slate-700'
-                                    : 'bg-blue-100 text-blue-900'
+                                    ? '用户种子'
+                                    : '自动发现'
                                 }
-                              >
-                                {c.discovered_by === 'user_seed'
-                                  ? '种子'
-                                  : `相关度 ${(c.relevance_score * 100).toFixed(0)}%`}
-                              </Badge>
+                                value={
+                                  c.discovered_by === 'user_seed'
+                                    ? undefined
+                                    : `${(c.relevance_score * 100).toFixed(0)}%`
+                                }
+                                tone={c.discovered_by === 'user_seed' ? 'slate' : 'blue'}
+                              />
                             </div>
                             {c.description && (
                               <p className="line-clamp-2 text-sm text-muted-foreground">
@@ -516,7 +603,7 @@ export function PlanReviewPage() {
                               </p>
                             )}
                             {c.relevance_reason && (
-                              <p className="break-words text-xs text-muted-foreground">
+                              <p className="line-clamp-2 break-words text-xs text-muted-foreground">
                                 理由：{c.relevance_reason}
                               </p>
                             )}
@@ -550,14 +637,32 @@ export function PlanReviewPage() {
                   <CardHeader>
                     <CardTitle className="text-base">报告评分权重</CardTitle>
                     <CardDescription>
-                      权重之和须约等于 1.0（当前：
-                      {rubricWeightsSum(rubricWeights).toFixed(2)}）
+                      权重之和须约等于 1.0（当前：{rubricTotal.toFixed(2)}）
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="grid max-h-[28rem] gap-3 overflow-y-auto pr-3 sm:grid-cols-2">
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all',
+                            rubricValid ? 'bg-emerald-500' : 'bg-amber-500',
+                          )}
+                          style={{ width: `${Math.max(4, Math.min(100, rubricTotal * 100))}%` }}
+                        />
+                      </div>
+                      {!rubricValid && (
+                        <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+                          权重总和需要等于 1.00 后才能批准计划。
+                        </p>
+                      )}
+                    </div>
+                    <div className="grid max-h-[24rem] gap-3 overflow-y-auto pr-3 sm:grid-cols-2">
                     {Object.entries(rubricWeights).map(([key, value]) => (
                       <div key={key} className="space-y-1">
-                        <Label htmlFor={`rubric-${key}`}>{key}</Label>
+                        <Label htmlFor={`rubric-${key}`}>
+                          {COMPARISON_DIMENSION_COPY[key]?.label ?? key}
+                        </Label>
                         <Input
                           id={`rubric-${key}`}
                           type="number"
@@ -577,6 +682,7 @@ export function PlanReviewPage() {
                         权重之和必须约等于 1.0
                       </p>
                     )}
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -721,6 +827,44 @@ export function PlanReviewPage() {
         </div>
       )}
     </QueryState>
+  )
+}
+
+function ChecklistItem({
+  ok,
+  warning = false,
+  label,
+  detail,
+}: {
+  ok: boolean
+  warning?: boolean
+  label: string
+  detail: string
+}) {
+  const tone = warning ? 'amber' : ok ? 'green' : 'red'
+  const icon = ok && !warning
+    ? <CheckCircle2 className="h-4 w-4" aria-hidden />
+    : <CircleAlert className="h-4 w-4" aria-hidden />
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border p-3',
+        tone === 'green' && 'border-emerald-300 bg-emerald-50/60',
+        tone === 'amber' && 'border-amber-300 bg-amber-50/70',
+        tone === 'red' && 'border-red-300 bg-red-50/60',
+      )}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-medium">{label}</span>
+        <MetricChip
+          label={warning ? '需关注' : ok ? '通过' : '未完成'}
+          tone={tone}
+          icon={icon}
+        />
+      </div>
+      <p className="text-sm text-muted-foreground">{detail}</p>
+    </div>
   )
 }
 

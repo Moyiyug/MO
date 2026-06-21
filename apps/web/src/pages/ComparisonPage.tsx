@@ -16,6 +16,7 @@ import {
 } from '@/components/common/InfoHierarchy'
 import { EvidenceSummary } from '@/components/common/EvidenceSummary'
 import { PageCommandBar } from '@/components/common/PageCommandBar'
+import { MetricChip } from '@/components/common/visual'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -93,6 +94,9 @@ export function ComparisonPage() {
 
   const guide = PAGE_GUIDE_COPY.comparison
   const weightIsValid = Math.abs(weightSum - 1) <= 0.01
+  const topRanking = matrix?.rankings[0]
+  const hasRecommendationEvidence =
+    (matrix?.recommendation_evidence_ids.length ?? 0) > 0
 
   return (
     <QueryState
@@ -129,6 +133,50 @@ export function ComparisonPage() {
 
           <PageLayout ratio="3:1">
             <PrimaryWorkArea>
+              {/* 首屏结论 */}
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0 space-y-2">
+                      <h2 className="text-lg font-semibold">一句话对比结论</h2>
+                      <p className="break-words text-sm text-muted-foreground">
+                        {topRanking
+                          ? `当前加权排名第一的是 ${topRanking.repo_name}，总分 ${topRanking.weighted_total.toFixed(2)}；完整取舍建议请继续查看报告。`
+                          : '当前还没有可用排名，建议先查看执行进度。'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {topRanking && (
+                        <MetricChip
+                          label={topRanking.repo_name}
+                          value="TOP 1"
+                          tone="blue"
+                          title={topRanking.repo_url}
+                        />
+                      )}
+                      <MetricChip
+                        label={hasRecommendationEvidence ? '推荐有证据入口' : '推荐证据不足'}
+                        value={matrix.recommendation_evidence_ids.length}
+                        tone={hasRecommendationEvidence ? 'green' : 'amber'}
+                      />
+                    </div>
+                  </div>
+                  <p className="rounded-md border bg-muted/35 p-3 text-sm">
+                    {matrix.recommendation}
+                  </p>
+                  {hasRecommendationEvidence ? (
+                    <EvidenceSummary
+                      evidenceIds={matrix.recommendation_evidence_ids}
+                      evidenceItems={evidence}
+                    />
+                  ) : (
+                    <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+                      recommendation 暂无证据 ID，不会作为强结论展示。
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* 加权排名 */}
               <Card>
                 <CardContent className="space-y-4 pt-6">

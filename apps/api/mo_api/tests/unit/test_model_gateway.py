@@ -148,6 +148,7 @@ async def test_complete_uses_api_key_env(
 
     def fake_completion(*_args, **kwargs):
         assert kwargs["api_key"] == "secret-key-value"
+        assert "response_format" not in kwargs
         return _Response()
 
     from mo_api.adapters.model_gateway.gateway import ModelGateway as GW
@@ -162,6 +163,41 @@ async def test_complete_uses_api_key_env(
 
     result = await gateway.complete(profile, [{"role": "user", "content": "hi"}])
     assert result == "hello"
+
+
+@pytest.mark.asyncio
+async def test_complete_json_mode_is_explicit(
+    gateway: ModelGateway, store: ProfileStore, monkeypatch
+) -> None:
+    profile = store.by_id("deepseek-flash")
+    assert profile is not None
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "secret-key-value")
+
+    class _Choice:
+        message = type("M", (), {"content": "{}"})()
+
+    class _Response:
+        choices = [_Choice()]
+
+    captured: dict = {}
+
+    def fake_completion(*_args, **kwargs):
+        captured.update(kwargs)
+        return _Response()
+
+    monkeypatch.setattr(
+        ModelGateway,
+        "_import_litellm",
+        staticmethod(lambda: type("L", (), {"completion": fake_completion})()),
+    )
+
+    result = await gateway.complete(
+        profile,
+        [{"role": "user", "content": "json please"}],
+        json_mode=True,
+    )
+    assert result == "{}"
+    assert captured["response_format"] == {"type": "json_object"}
 
 
 @pytest.mark.asyncio
@@ -452,4 +488,3 @@ async def test_test_endpoint_success_mocked(
     assert body["ok"] is True
     assert body["profile_id"] == "deepseek-flash"
     assert body["latency_ms"] == 12
-

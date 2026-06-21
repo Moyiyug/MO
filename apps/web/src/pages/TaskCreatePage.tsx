@@ -8,6 +8,7 @@ import { useCreateTask, useGeneratePlan } from '@/api/tasks'
 import { StatusGuide } from '@/components/common/StatusGuide'
 import { PageLayout, PrimaryWorkArea } from '@/components/common/InfoHierarchy'
 import { PageCommandBar } from '@/components/common/PageCommandBar'
+import { MetricChip } from '@/components/common/visual'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -96,6 +97,19 @@ export function TaskCreatePage() {
     const form = document.getElementById('task-create-form') as HTMLFormElement | null
     form?.requestSubmit()
   }
+  const loadExample = () => {
+    setGoal(GOAL_EXAMPLES[0])
+    setRepoText('')
+    setPaperText('')
+    setFormError(null)
+    toast.success('示例目标已填入，仓库仍可留空由系统发现。')
+  }
+  const permissionSummary = [
+    permissions.allow_web_search && '联网调研',
+    permissions.allow_repo_clone && '克隆仓库',
+    permissions.allow_smoke_test && '冒烟测试',
+    permissions.allow_dependency_install && '依赖安装',
+  ].filter((item): item is string => Boolean(item))
 
   return (
     <div className="mo-page-shell max-w-6xl pt-8 lg:pt-12">
@@ -258,7 +272,7 @@ export function TaskCreatePage() {
                 title="辅助操作"
                 description="创建任务请使用页面顶部主按钮；提交后只生成计划，执行调研仍需要你批准。"
                 secondary={[
-                  { label: '加载示例', href: '/history', icon: <Sparkles className="h-4 w-4" aria-hidden /> },
+                  { label: '加载示例', onClick: loadExample, icon: <Sparkles className="h-4 w-4" aria-hidden /> },
                   { label: CTA_COPY.backToHistory, href: '/history', icon: <History className="h-4 w-4" aria-hidden /> },
                 ]}
               />
@@ -268,6 +282,22 @@ export function TaskCreatePage() {
       </PageLayout>
 
         <aside className="space-y-3 lg:pt-8">
+          <div className="rounded-lg border bg-card/78 p-3 text-sm shadow-sm">
+            <p className="font-medium">权限摘要</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              默认保守；高风险动作后续仍会单独审批。
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {permissionSummary.length > 0 ? (
+                permissionSummary.map((item) => (
+                  <MetricChip key={item} label={item} tone="amber" />
+                ))
+              ) : (
+                <MetricChip label="默认保守" tone="green" />
+              )}
+              <MetricChip label={`${permissions.max_runtime_minutes} min`} tone="slate" />
+            </div>
+          </div>
           {[
             ['1', '创建任务后进入调研计划，不会直接执行仓库代码'],
             ['2', '仓库候选会在计划审阅页让你选择确认'],

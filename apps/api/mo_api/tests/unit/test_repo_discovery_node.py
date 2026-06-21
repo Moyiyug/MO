@@ -152,6 +152,26 @@ async def test_no_candidates_returns_note(stub_settings) -> None:
     assert note is not None
 
 
+async def test_rag_framework_topic_pins_builtin_top_three(stub_settings) -> None:
+    adapter = _FakeAdapter([_candidate("random/repo", 999999)])
+
+    candidates, note = await node.discover_candidates(
+        "RAG 架构调研：对比主流框架",
+        [],
+        adapter=adapter,
+        gateway=_FakeGateway(),
+        template="rag_framework_comparison",
+    )
+
+    assert note is None
+    assert [c.repo_url for c in candidates[:3]] == [
+        "https://github.com/langchain-ai/langchain",
+        "https://github.com/run-llama/llama_index",
+        "https://github.com/deepset-ai/haystack",
+    ]
+    assert all(c.selected for c in candidates[:3])
+
+
 async def test_rerank_falls_back_to_stars_when_llm_returns_bad_json(
     stub_settings,
 ) -> None:

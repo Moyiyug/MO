@@ -18,6 +18,7 @@ from ..models.plan import Plan
 from ..models.comparison import ComparisonMatrix
 from ..models.reproducibility import ReproducibilityReport
 from ..models.report import Report
+from ..models.report_seed import ReportSectionSeed
 from ..models.repo import RepoCard
 from ..models.task import TaskPermissions, TaskResponse
 from .tables import (
@@ -27,6 +28,7 @@ from .tables import (
     NodeEventTable,
     PlanTable,
     RepoCardTable,
+    ReportSectionSeedTable,
     ReportTable,
     TaskTable,
 )
@@ -119,6 +121,7 @@ class TaskRepository:
         table_types = (
             NodeEventTable,
             ReportTable,
+            ReportSectionSeedTable,
             ComparisonTable,
             ReproducibilityTable,
             RepoCardTable,
@@ -409,6 +412,88 @@ class ReportRepository:
             return _row_to_report(row)
         self.session.refresh(existing)
         return _row_to_report(existing)
+
+
+def _row_to_report_seed(row: ReportSectionSeedTable) -> ReportSectionSeed:
+    data = dict(row.seed_data or {})
+    data.setdefault("id", row.id)
+    data.setdefault("task_id", row.task_id)
+    data.setdefault("section_key", row.section_key)
+    data.setdefault("node", row.node)
+    data.setdefault("created_at", row.created_at)
+    data.setdefault("updated_at", row.updated_at)
+    return ReportSectionSeed.model_validate(data)
+
+
+class ReportSectionSeedRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def list_by_task(self, task_id: str) -> list[ReportSectionSeed]:
+        rows = self.session.exec(
+            select(ReportSectionSeedTable)
+            .where(ReportSectionSeedTable.task_id == task_id)
+            .order_by(ReportSectionSeedTable.created_at.asc())
+        ).all()
+        return [_row_to_report_seed(r) for r in rows]
+
+    def list_by_task_and_section(
+        self, task_id: str, section_key: str
+    ) -> list[ReportSectionSeed]:
+        rows = self.session.exec(
+            select(ReportSectionSeedTable)
+            .where(ReportSectionSeedTable.task_id == task_id)
+            .where(ReportSectionSeedTable.section_key == section_key)
+            .order_by(ReportSectionSeedTable.created_at.asc())
+        ).all()
+        return [_row_to_report_seed(r) for r in rows]
+
+    def upsert(self, seed: ReportSectionSeed) -> ReportSectionSeed:
+        existing = self.session.exec(
+            select(ReportSectionSeedTable)
+            .where(ReportSectionSeedTable.task_id == seed.task_id)
+            .where(ReportSectionSeedTable.section_key == seed.section_key)
+            .where(ReportSectionSeedTable.node == seed.node)
+        ).first()
+
+        payload = seed.model_dump(mode="json")
+        if existing is None:
+            row = ReportSectionSeedTable(
+                id=seed.id,
+                task_id=seed.task_id,
+                section_key=seed.section_key,
+                node=seed.node,
+                seed_data=payload,
+                created_at=seed.created_at,
+                updated_at=seed.updated_at,
+            )
+            self.session.add(row)
+            self.session.commit()
+            self.session.refresh(row)
+            return _row_to_report_seed(row)
+
+        payload["id"] = existing.id
+        payload["created_at"] = (
+            existing.created_at.isoformat()
+            if hasattr(existing.created_at, "isoformat")
+            else existing.created_at
+        )
+        existing.seed_data = payload
+        existing.updated_at = seed.updated_at
+        self.session.add(existing)
+        self.session.commit()
+        self.session.refresh(existing)
+        return _row_to_report_seed(existing)
+
+    def delete_by_task(self, task_id: str) -> None:
+        rows = self.session.exec(
+            select(ReportSectionSeedTable).where(
+                ReportSectionSeedTable.task_id == task_id
+            )
+        ).all()
+        for row in rows:
+            self.session.delete(row)
+        self.session.commit()
 
 
 def _row_to_comparison(row: ComparisonTable) -> ComparisonMatrix:

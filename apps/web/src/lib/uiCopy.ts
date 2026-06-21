@@ -224,6 +224,34 @@ export const PAGE_GUIDE_COPY = {
   },
 } as const
 
+// ─── 报告视图 ────────────────────────────────────────────────────────
+export const REPORT_VIEW_COPY = {
+  readerSummary: {
+    label: '阅读概要',
+    description: '面向人阅读的报告摘要，不直接展示原始数据。',
+  },
+  readerFull: {
+    label: '完整阅读',
+    description: '连续阅读润色后的完整报告。',
+  },
+  readerSection: {
+    label: '章节阅读',
+    description: '阅读单个润色后的报告章节。',
+  },
+  dataOverview: {
+    label: '数据视图',
+    description: '查看结构化草稿、章节种子、结论与证据。',
+  },
+  evidence: {
+    label: '证据附录',
+    description: '查看完整证据链和来源定位。',
+  },
+  structuredDraft: '结构化章节草稿',
+  seedNarratives: '节点章节种子',
+  seedStructuredData: '结构化数据快照',
+  polishWarnings: '润色警告',
+} as const
+
 // ─── 通用 CTA（Call To Action）文案 ──────────────────────────────────
 export const CTA_COPY = {
   create:       '创建任务',

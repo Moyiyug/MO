@@ -9,6 +9,7 @@ from ..models.events import NodeEvent
 from ..models.evidence import EvidenceItem
 from ..models.plan import Plan
 from ..models.repo import RepoCard
+from ..models.report_seed import ReportSectionSeed
 from ..models.reproducibility import ReproducibilityReport
 from ..models.task import TaskResponse
 from ..storage.repositories import (
@@ -16,6 +17,7 @@ from ..storage.repositories import (
     EventRepository,
     EvidenceRepository,
     PlanRepository,
+    ReportSectionSeedRepository,
     ReproducibilityRepository,
     RepoCardRepository,
     TaskRepository,
@@ -32,6 +34,7 @@ class ReportContext(BaseModel):
     evidence_items: list[EvidenceItem] = Field(default_factory=list)
     comparison: ComparisonMatrix | None = None
     reproducibility: ReproducibilityReport | None = None
+    report_seeds: list[ReportSectionSeed] = Field(default_factory=list)
 
 
 class ReportContextService:
@@ -53,4 +56,5 @@ class ReportContextService:
             evidence_items=EvidenceRepository(self.session).list_by_task(task_id),
             comparison=ComparisonRepository(self.session).get_by_task(task_id),
             reproducibility=ReproducibilityRepository(self.session).get_by_task(task_id),
+            report_seeds=ReportSectionSeedRepository(self.session).list_by_task(task_id),
         )

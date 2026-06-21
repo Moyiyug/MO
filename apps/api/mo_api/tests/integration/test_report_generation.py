@@ -9,7 +9,7 @@ from sqlmodel import Session
 
 from mo_api.models.enums import ClaimLabel
 from mo_api.models.report import REPORT_SECTION_KEYS
-from mo_api.storage.repositories import ReportRepository
+from mo_api.storage.repositories import ReportRepository, ReportSectionSeedRepository
 
 
 async def _approve_plan_flow(client, task_id: str) -> None:
@@ -66,6 +66,12 @@ async def _run_full_execute(client, task_id: str, engine) -> None:
 @pytest.mark.asyncio
 async def test_report_generation_and_export(client, created_task_id, engine) -> None:
     await _run_full_execute(client, created_task_id, engine)
+
+    with Session(engine) as session:
+        seeds = ReportSectionSeedRepository(session).list_by_task(created_task_id)
+    assert seeds
+    assert any(seed.section_key == "repo_overview" for seed in seeds)
+    assert any(seed.section_key == "technical_route" for seed in seeds)
 
     # F-013: 显式生成报告（GET /report 已改为只读）
     gen_resp = await client.post(f"/api/tasks/{created_task_id}/generate-report")

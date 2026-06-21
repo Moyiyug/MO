@@ -154,9 +154,22 @@ def _primary_language(content: dict[str, str]) -> str | None:
         lang = _EXT_LANG.get(ext)
         if lang:
             counts[lang] = counts.get(lang, 0) + 1
-    if not counts:
-        return None
-    return max(counts, key=counts.get)
+    if counts:
+        return max(counts, key=counts.get)
+    lower_paths = {path.lower() for path in content}
+    if lower_paths & {"pyproject.toml", "setup.py", "setup.cfg", "requirements.txt"}:
+        return "Python"
+    if "package.json" in lower_paths:
+        return "JavaScript"
+    return None
+
+
+def _primary_language_label(content: dict[str, str], language: str) -> ClaimLabel:
+    for path in content:
+        ext = "." + path.rsplit(".", 1)[-1].lower() if "." in path else ""
+        if _EXT_LANG.get(ext) == language:
+            return ClaimLabel.FACT
+    return ClaimLabel.INFERENCE
 
 
 def _make_evidence(
@@ -201,6 +214,57 @@ def _parse_jsonish(text: str) -> dict:
             if match:
                 result[key] = match.group(1)
     return result
+
+
+def _infer_project_type(digest: RepoDigest) -> str | None:
+    content_sample = "\n".join(list(digest.content.values())[:4])
+    text = f"{digest.source_uri}\n{digest.summary}\n{digest.tree}\n{content_sample}".lower()
+    if any(
+        token in text
+        for token in ("rag", "retrieval", "llm", "agent", "llama-index")
+    ):
+        return "LLM/RAG application framework"
+    if any(token in text for token in ("library", "framework", "package")):
+        return "software library/framework"
+    if "api" in text:
+        return "API/service project"
+    return None
+
+
+def _normalize_project_type(
+    project_type: str | None,
+    digest: RepoDigest,
+) -> str | None:
+    inferred = _infer_project_type(digest)
+    current = (project_type or "").strip()
+    if not current:
+        return inferred
+    if current.lower() in {
+        "python",
+        "python project",
+        "yes",
+        "unknown",
+        "repository",
+        "repo",
+        "library",
+        "framework",
+        "software",
+    } and inferred:
+        return inferred
+    return current
+
+
+def _infer_entrypoints(content: dict[str, str]) -> list[str]:
+    candidates: list[str] = []
+    for path in content:
+        lower = path.lower()
+        if lower.endswith("__init__.py") and "test" not in lower:
+            candidates.append(path)
+        elif lower in {"main.py", "app.py", "cli.py"}:
+            candidates.append(path)
+        elif lower.endswith("/main.py") or lower.endswith("/cli.py"):
+            candidates.append(path)
+    return sorted(dict.fromkeys(candidates))[:10]
 
 
 async def build_repo_card(
@@ -307,7 +371,8 @@ async def build_repo_card(
 
     primary_language = _primary_language(content)
     if primary_language:
-        field_labels["primary_language"] = ClaimLabel.FACT.value
+        language_label = _primary_language_label(content, primary_language)
+        field_labels["primary_language"] = language_label.value
         eid = evidence_service.add(
             _make_evidence(
                 task_id=task_id,
@@ -333,6 +398,7 @@ async def build_repo_card(
             profile,
             [{"role": "user", "content": prompt}],
             max_tokens=512,
+            json_mode=True,
         )
         parsed = _parse_jsonish(raw)
         project_type = parsed.get("project_type")
@@ -346,6 +412,16 @@ async def build_repo_card(
         field_labels["project_type"] = ClaimLabel.PENDING.value
         field_labels["entrypoints"] = ClaimLabel.PENDING.value
         field_labels["risks"] = ClaimLabel.PENDING.value
+
+    normalized_project_type = _normalize_project_type(project_type, digest)
+    if normalized_project_type != project_type:
+        project_type = normalized_project_type
+        if project_type:
+            field_labels["project_type"] = ClaimLabel.INFERENCE.value
+    if not entrypoints:
+        entrypoints = _infer_entrypoints(content)
+        if entrypoints:
+            field_labels["entrypoints"] = ClaimLabel.INFERENCE.value
 
     return RepoCard(
         id=uuid.uuid4().hex,

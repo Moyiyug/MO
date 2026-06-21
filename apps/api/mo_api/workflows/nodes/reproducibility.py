@@ -21,6 +21,7 @@ from ...models.enums import (
 )
 from ...models.evidence import EvidenceItem
 from ...models.reproducibility import ReproducibilityReport, ReproducibilityScore
+from ...services.report_seed_service import ReportSeedService
 from ...storage import db
 from ...storage.repositories import RepoCardRepository, ReproducibilityRepository
 from ..execute_context import get_context, maybe_skip_node, publish_node_event
@@ -31,20 +32,37 @@ NODE_ID = "reproducibility"
 
 def _parse_dimension(raw: str) -> tuple[float, str, list[str]]:
     text = raw.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*", "", text)
-        text = re.sub(r"\s*```$", "", text)
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            score = float(data.get("score", 0.5))
-            reason = str(data.get("reason", ""))
-            missing = data.get("missing_info") or []
-            if isinstance(missing, str):
-                missing = [missing]
-            return max(0.0, min(1.0, score)), reason, list(missing)
-    except (json.JSONDecodeError, TypeError, ValueError):
-        logger.debug("JSON parse failed for LLM output: %s", text[:100])
+    # Strip ALL markdown code block wrappers
+    text = re.sub(r"```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```", "", text)
+    text = text.strip()
+    # Find first JSON object
+    json_start = text.find("{")
+    if json_start >= 0:
+        depth = 0
+        json_end = -1
+        for i in range(json_start, len(text)):
+            ch = text[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    json_end = i + 1
+                    break
+        if json_end > json_start:
+            try:
+                data = json.loads(text[json_start:json_end])
+                if isinstance(data, dict):
+                    score = float(data.get("score", 0.5))
+                    reason = str(data.get("reason", ""))
+                    missing = data.get("missing_info") or []
+                    if isinstance(missing, str):
+                        missing = [missing]
+                    return max(0.0, min(1.0, score)), reason, list(missing)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                logger.debug("JSON parse failed for substring: %s", text[json_start:json_end][:100])
+    # Regex fallback
     match = re.search(r'"score"\s*:\s*([\d.]+)', text)
     score = float(match.group(1)) if match else 0.5
     return max(0.0, min(1.0, score)), text[:200], []
@@ -117,6 +135,7 @@ async def reproducibility(state: MOState) -> MOState:
                     profile,
                     [{"role": "user", "content": prompt}],
                     max_tokens=256,
+                    json_mode=True,
                 )
                 score_val, reason, missing = _parse_dimension(raw)
                 dimension_scores[dimension] = score_val
@@ -178,6 +197,33 @@ async def reproducibility(state: MOState) -> MOState:
 
     with Session(db.get_engine()) as session:
         ReproducibilityRepository(session).upsert_by_task(report)
+
+    try:
+        narrative_lines = [
+            "本次复现性分析为静态复现评估，不代表实际运行成功。",
+            f"共评估 {len(scores)} 个仓库。",
+        ]
+        for score in scores:
+            narrative_lines.append(
+                f"- {score.repo_name}: 综合得分 {score.overall_score:.2f}；"
+                f"主要缺口：{', '.join(score.missing_info[:3]) or '暂未发现明显缺口'}。"
+            )
+        with Session(db.get_engine()) as session:
+            ReportSeedService(session).upsert_seed(
+                task_id=task_id,
+                section_key="reproducibility",
+                node=NODE_ID,
+                narrative_seed="\n".join(narrative_lines),
+                structured_data=report.model_dump(mode="json"),
+                evidence_ids=all_evidence_ids,
+                warnings=list(
+                    dict.fromkeys(
+                        missing for score in scores for missing in score.missing_info
+                    )
+                )[:10],
+            )
+    except Exception as exc:
+        logger.warning("reproducibility seed write failed: %s", exc)
 
     evidence_items = [
         item.model_dump(mode="json")

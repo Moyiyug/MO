@@ -144,6 +144,7 @@ class ModelGateway:
         max_tokens: int = 16,
         temperature: float | None = None,
         timeout: float | None = None,
+        json_mode: bool = False,
     ) -> str:
         api_key = self.store.resolve_api_key(profile)
         base_url = self.store.resolve_base_url(profile)
@@ -176,6 +177,8 @@ class ModelGateway:
                     kwargs["temperature"] = temp
                 if profile.reasoning_effort is not None:
                     kwargs["reasoning_effort"] = profile.reasoning_effort
+                if json_mode and profile.capabilities.json_mode:
+                    kwargs["response_format"] = {"type": "json_object"}
 
                 response = await asyncio.to_thread(litellm.completion, **kwargs)
                 content = response.choices[0].message.content

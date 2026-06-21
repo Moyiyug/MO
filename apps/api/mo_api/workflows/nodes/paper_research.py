@@ -16,6 +16,7 @@ from ...adapters.paper_research import PaperResearchError
 from ...models.enums import EvidenceStrength, MaterialType, NodeStatus, SourceType
 from ...models.evidence import EvidenceItem
 from ...models.reproducibility import PaperMaterial
+from ...services.report_seed_service import ReportSeedService
 from ...storage import db
 from ...storage.repositories import RepoCardRepository
 from ..execute_context import get_context, maybe_skip_node, publish_node_event
@@ -81,6 +82,7 @@ async def _classify_material(
         profile,
         [{"role": "user", "content": prompt}],
         max_tokens=128,
+        json_mode=True,
     )
     return _parse_classification(raw)
 
@@ -266,6 +268,39 @@ async def paper_research(state: MOState) -> MOState:
         item.model_dump(mode="json")
         for item in ctx.evidence_service.list_by_task(task_id)
     ]
+
+    try:
+        official = [
+            material
+            for material in materials
+            if material.material_type.value in {"official_repo_paper", "official_doc"}
+        ]
+        pending = [
+            material for material in materials if not material.relationship_clear
+        ]
+        narrative_lines = [f"本次资料调研收集 {len(materials)} 项资料。"]
+        if official:
+            narrative_lines.append(
+                f"其中 {len(official)} 项被识别为官方论文或官方文档。"
+            )
+        if pending:
+            narrative_lines.append(
+                f"有 {len(pending)} 项资料与仓库关系尚不明确，需要后续确认。"
+            )
+        with Session(db.get_engine()) as session:
+            ReportSeedService(session).upsert_seed(
+                task_id=task_id,
+                section_key="paper_supplement",
+                node=NODE_ID,
+                narrative_seed="\n".join(narrative_lines),
+                structured_data={
+                    "materials": [m.model_dump(mode="json") for m in materials]
+                },
+                evidence_ids=evidence_ids,
+                warnings=["存在资料关系不明项"] if pending else [],
+            )
+    except Exception as exc:
+        logger.warning("paper_supplement seed write failed: %s", exc)
 
     return {
         "paper_materials": [m.model_dump(mode="json") for m in materials],

@@ -37,6 +37,7 @@ from ..models.report import (
     ReportSection,
     ScenarioRecommendation,
 )
+from ..models.report_seed import ReportSectionSeed
 from ..models.task import TaskResponse
 from ..storage.repositories import (
     ComparisonRepository,
@@ -55,6 +56,7 @@ from .report_evidence import (
     build_evidence_digest,
     format_claim_for_markdown,
 )
+from .report_polish import FinalReportPolisher, SectionDraft, SectionPolisher
 from .state_machine import ensure_transition
 
 
@@ -87,6 +89,44 @@ class ReportService:
             self._gateway = get_model_gateway()
         return self._gateway
 
+    def _seeds_by_section(
+        self,
+        context: ReportContext,
+    ) -> dict[str, list[ReportSectionSeed]]:
+        grouped: dict[str, list[ReportSectionSeed]] = {}
+        for seed in context.report_seeds:
+            grouped.setdefault(seed.section_key, []).append(seed)
+        return grouped
+
+    def _section_to_draft(
+        self,
+        section: ReportSection,
+        *,
+        seeds: list[ReportSectionSeed],
+    ) -> SectionDraft:
+        seed_narratives = [seed.narrative_seed for seed in seeds if seed.narrative_seed]
+        seed_structured = [
+            seed.structured_data for seed in seeds if seed.structured_data
+        ]
+        seed_warnings = [
+            warning for seed in seeds for warning in seed.warnings
+        ]
+        metadata = dict(section.metadata or {})
+        metadata["seed_structured_data"] = seed_structured
+        metadata["seed_warnings"] = seed_warnings
+        metadata["seed_nodes"] = [seed.node for seed in seeds]
+        return SectionDraft(
+            key=section.key,
+            title=section.title,
+            structured_markdown=section.markdown,
+            seed_narratives=seed_narratives,
+            claims=section.claims,
+            evidence_ids=list(section.evidence_ids or []),
+            metadata=metadata,
+            is_pending=section.is_pending,
+            summary=section.summary,
+        )
+
     def get_cached_report(self, task_id: str) -> Report | None:
         self._require_reportable_task(task_id)
         return self.report_repo.get_by_task(task_id)
@@ -116,7 +156,6 @@ class ReportService:
         claim_factory = ClaimFactory(evidence_digest)
 
         pending_warnings: list[str] = []
-        sections: list[ReportSection] = []
 
         # v2: 统一 kwargs，注入 digest / claim_factory / comparison / reproducibility
         kwargs: dict[str, Any] = dict(
@@ -185,8 +224,48 @@ class ReportService:
         section_map["technical_route"] = tech_section
         pending_warnings.extend(tech_warnings)
 
-        for key in REPORT_SECTION_KEYS:
-            sections.append(section_map[key])
+        raw_sections = [section_map[key] for key in REPORT_SECTION_KEYS]
+
+        seeds_by_section = self._seeds_by_section(context)
+        section_polisher = SectionPolisher(self._ensure_gateway())
+        sections: list[ReportSection] = []
+        polish_warnings: list[str] = []
+
+        for raw_section in raw_sections:
+            draft = self._section_to_draft(
+                raw_section,
+                seeds=seeds_by_section.get(raw_section.key, []),
+            )
+            polished = await section_polisher.polish(
+                draft,
+                output_language=task.output_language.value,
+            )
+            polish_warnings.extend(polished.warnings)
+            metadata = dict(draft.metadata or {})
+            metadata["structured_markdown"] = draft.structured_markdown
+            metadata["seed_narratives"] = draft.seed_narratives
+            metadata["polish_status"] = polished.polish_status
+            metadata["polish_warnings"] = polished.warnings
+            sections.append(
+                ReportSection(
+                    key=draft.key,
+                    title=draft.title,
+                    markdown=self._strip_duplicate_section_heading(
+                        polished.reader_markdown,
+                        draft.title,
+                    ),
+                    claims=draft.claims,
+                    is_pending=draft.is_pending,
+                    summary=polished.summary,
+                    evidence_ids=draft.evidence_ids,
+                    metadata=metadata,
+                )
+            )
+        pending_warnings.extend(
+            warning
+            for warning in polish_warnings
+            if not warning.startswith("section polish fallback:")
+        )
 
         # v2: 构建 executive summary 和 key findings
         executive_summary = self._build_executive_summary(context, evidence_digest)
@@ -194,16 +273,24 @@ class ReportService:
         scenario_recs = self._build_scenario_recommendations(comparison, evidence_digest)
         appendix_groups = self._build_evidence_appendix_groups(evidence_items, evidence_digest)
 
-        markdown = self._assemble_markdown_v2(
+        unique_pending_warnings = list(dict.fromkeys(pending_warnings))
+        fallback_markdown = self._assemble_markdown_v2(
             sections,
             executive_summary=executive_summary,
-            pending_warnings=list(dict.fromkeys(pending_warnings)),
+            pending_warnings=unique_pending_warnings,
+        )
+        markdown = await FinalReportPolisher(self._ensure_gateway()).polish_report(
+            executive_summary=executive_summary,
+            sections=sections,
+            pending_warnings=unique_pending_warnings,
+            output_language=task.output_language.value,
+            fallback_markdown=fallback_markdown,
         )
         report = Report(
             id=uuid.uuid4().hex,
             task_id=task_id,
             sections=sections,
-            pending_warnings=list(dict.fromkeys(pending_warnings)),
+            pending_warnings=unique_pending_warnings,
             generated_at=datetime.now(timezone.utc),
             markdown=markdown,
             executive_summary=executive_summary,
@@ -312,6 +399,53 @@ class ReportService:
     ) -> str:
         """v2: 使用友好证据编号（E01/E02），不暴露 raw evidence id 在正文。"""
         return format_claim_for_markdown(claim, digest=digest, lang="zh")
+
+    @staticmethod
+    def _clean_comparison_rationale(rationale: str | None) -> str:
+        text = (rationale or "").strip()
+        if not text:
+            return "评分理由不足，需人工复核。"
+        if text.startswith("{") or '"score"' in text or "'score'" in text:
+            return "模型评分理由不完整，已按保守结果展示，需人工复核。"
+        text = (
+            text.replace("project_type=yes", "type=1")
+            .replace("project_type=no", "type=0")
+            .replace("project_type_present=", "type=")
+            .replace("license_present=", "license=")
+            .replace("ĄŁ", ".")
+        )
+        if len(text) > 96:
+            return text[:93].rstrip() + "..."
+        return text
+
+    @staticmethod
+    def _clean_reference_summary(summary: str | None) -> str:
+        text = (summary or "").strip()
+        if not text:
+            return "（无摘要）"
+        if '"score"' in text or "'score'" in text or '{"score"' in text:
+            prefix = text.split(":", 1)[0] if ":" in text else "模型评分"
+            return f"{prefix}: 模型评分原始输出已压缩，需人工复核。"
+        text = (
+            text.replace("project_type_present=", "type=")
+            .replace("license_present=", "license=")
+            .replace("project_type=", "type=")
+            .replace("ĄŁ", ".")
+        )
+        if len(text) > 240:
+            return text[:237].rstrip() + "..."
+        return text
+
+    @staticmethod
+    def _strip_duplicate_section_heading(markdown: str, title: str) -> str:
+        lines = (markdown or "").strip().splitlines()
+        if not lines:
+            return ""
+        first = lines[0].strip()
+        normalized = first.lstrip("#").strip()
+        if first.startswith("#") and normalized == title.strip():
+            return "\n".join(lines[1:]).strip()
+        return "\n".join(lines).strip()
 
     def _assemble_markdown(self, sections: list[ReportSection]) -> str:
         """保留旧签名兼容性。"""
@@ -739,9 +873,15 @@ class ReportService:
         cf = claim_factory or ClaimFactory(digest)
 
         # 统计完成/失败/跳过
-        completed = [e for e in events if e.status in (NodeStatus.COMPLETED,)]
         failed = [e for e in events if e.status is NodeStatus.FAILED]
         skipped = [e for e in events if e.status is NodeStatus.SKIPPED]
+        skipped_nodes = {e.node for e in skipped}
+        completed = [
+            e
+            for e in events
+            if e.status in (NodeStatus.COMPLETED,) and e.node not in skipped_nodes
+        ]
+        has_run_log = any(e.source_type is SourceType.RUN_LOG for e in evidence_items)
         node_labels = {
             "task_intake": "任务录入",
             "plan_builder": "计划制定",
@@ -760,6 +900,11 @@ class ReportService:
             "本次执行完成了仓库读取、代码结构分析、资料补充、复现性静态评估和对比分析。",
             "",
         ]
+        if not has_run_log:
+            lines.append(
+                "> 说明：本次未记录 run_log，复现相关内容仅代表静态复现性评估，不代表实际运行或复现成功。"
+            )
+            lines.append("")
         if completed:
             lines.append(f"**完成项：** {', '.join(node_labels.get(e.node, e.node) for e in completed[:10])}")
         if failed:
@@ -786,12 +931,16 @@ class ReportService:
         if lang == "en":
             prompt = (
                 "Write a concise execution summary paragraph based ONLY on the node events below. "
-                "Do not invent facts.\n\n"
+                "Do not invent facts. If run_log_present is false, do not say that any "
+                "repository was actually run, reproduced, or verified by execution.\n\n"
+                f"run_log_present: {has_run_log}\n"
                 f"Events:\n{event_text}"
             )
         else:
             prompt = (
-                "根据以下节点执行事件，用中文写一段简洁的执行摘要。只能基于给定事件，不得编造。\n\n"
+                "根据以下节点执行事件，用中文写一段简洁的执行摘要。只能基于给定事件，不得编造。"
+                "如果 run_log_present 为 false，不得声称仓库已实际运行、复现成功、实测通过或运行后完成。\n\n"
+                f"run_log_present: {has_run_log}\n"
                 f"事件：\n{event_text}"
             )
         narrative = ""
@@ -804,6 +953,16 @@ class ReportService:
         except Exception as exc:
             logger.warning("execution_summary LLM failed: %s", exc)
             narrative = "（执行摘要生成失败——原始事件见附录）"
+
+        if narrative and not has_run_log:
+            for forbidden in (
+                "复现成功",
+                "实际运行成功",
+                "实测通过",
+                "运行后完成",
+                "已实际运行",
+            ):
+                narrative = narrative.replace(forbidden, "完成静态复现性评估")
 
         lines.append(narrative.strip())
         claims = [
@@ -1195,6 +1354,8 @@ class ReportService:
             "extensibility": "扩展性",
         }
         name_by_url = {r.repo_url: r.repo_name for r in matrix.rankings}
+        for ds in matrix.scores:
+            ds.rationale = self._clean_comparison_rationale(ds.rationale)
         seen_dims: set[str] = set()
         for ds in matrix.scores:
             dim = ds.dimension
@@ -1667,14 +1828,15 @@ class ReportService:
                     (e for e in evidence_items if e.id == ref.evidence_id), None
                 )
                 label = self._evidence_to_label(item) if item else ClaimLabel.INFERENCE
+                summary = self._clean_reference_summary(ref.summary)
                 lines.append(
                     f"- **{ref.display_id}** [{label.value}] "
                     f"`{ref.source_type.value}` {ref.source_uri}{locator_text}{strength_mark}\n"
                     f"  原始 ID：`{ref.evidence_id}`\n"
-                    f"  摘要：{ref.summary[:300]}\n"
+                    f"  摘要：{summary}\n"
                 )
                 claims.append(
-                    cf.make(ref.summary[:300], label, [ref.evidence_id])
+                    cf.make(summary, label, [ref.evidence_id])
                 )
                 section_evidence_ids.append(ref.evidence_id)
 

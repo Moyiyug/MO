@@ -13,6 +13,7 @@ from ...agents.repo_card import build_repo_card
 from ...models.enums import NodeStatus
 from sqlmodel import Session
 
+from ...services.report_seed_service import ReportSeedService
 from ...storage import db
 from ...storage.repositories import RepoCardRepository
 from ..execute_context import get_context, maybe_skip_node, publish_node_event
@@ -137,4 +138,43 @@ async def repo_ingest(state: MOState) -> MOState:
     }
     if errors:
         result["errors"] = errors
+
+    try:
+        with Session(db.get_engine()) as session:
+            cards_for_seed = RepoCardRepository(session).list_by_task(task_id)
+            if cards_for_seed:
+                narrative_lines = [f"本次共摄取 {len(cards_for_seed)} 个仓库。"]
+                for card in cards_for_seed:
+                    narrative_lines.append(
+                        f"- {card.repo_name}: "
+                        f"{card.summary[:180] if card.summary else '暂无摘要'}；"
+                        f"主要语言 {card.primary_language or '未知'}；"
+                        f"入口 {', '.join(card.entrypoints[:3]) or '未识别'}。"
+                    )
+                seed_evidence_ids = list(
+                    dict.fromkeys(
+                        eid for card in cards_for_seed for eid in card.evidence_ids
+                    )
+                )
+                ReportSeedService(session).upsert_seed(
+                    task_id=task_id,
+                    section_key="repo_overview",
+                    node=NODE_ID,
+                    narrative_seed="\n".join(narrative_lines),
+                    structured_data={
+                        "repo_cards": [
+                            card.model_dump(mode="json") for card in cards_for_seed
+                        ],
+                        "ingested_repos": list(ingested_repos),
+                        "errors": list(errors),
+                    },
+                    evidence_ids=seed_evidence_ids or all_evidence_ids,
+                    warnings=[
+                        str(error.get("msg", ""))
+                        for error in errors
+                        if isinstance(error, dict) and error.get("msg")
+                    ],
+                )
+    except Exception as exc:
+        logger.warning("repo_overview seed write failed: %s", exc)
     return result

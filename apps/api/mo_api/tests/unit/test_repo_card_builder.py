@@ -131,10 +131,10 @@ async def test_llm_failure_marks_pending(engine) -> None:
         )
 
     assert card.field_labels.get("project_type") == ClaimLabel.PENDING.value
-    assert card.field_labels.get("entrypoints") == ClaimLabel.PENDING.value
+    assert card.field_labels.get("entrypoints") == ClaimLabel.INFERENCE.value
     assert card.field_labels.get("risks") == ClaimLabel.PENDING.value
     assert card.project_type is None
-    assert card.entrypoints == []
+    assert card.entrypoints
     assert card.risks == []
 
 
@@ -185,6 +185,36 @@ async def test_primary_language_detection(engine) -> None:
         if i.locator == "<file-tree>" and "Primary language" in i.quote_or_summary
     ]
     assert len(lang_items) == 1
+
+
+@pytest.mark.asyncio
+async def test_raw_python_rag_digest_infers_language_and_type(engine) -> None:
+    task_id = "rc-raw-rag"
+    digest = _digest(
+        summary="Raw GitHub fallback ingest",
+        tree="README.md\npyproject.toml",
+        content={
+            "README.md": (
+                "# LlamaIndex\n"
+                "A data framework for LLM applications and retrieval workflows."
+            ),
+            "pyproject.toml": (
+                "[project]\n"
+                "dependencies = [\"llama-index-core>=0.14\", \"nltk>=3\"]"
+            ),
+            "LICENSE": "The MIT License",
+        },
+        source_uri="https://github.com/run-llama/llama_index",
+    )
+
+    with Session(engine) as session:
+        svc = EvidenceService(session)
+        card = await build_repo_card(task_id, digest, _fake_gateway(llm_ok=False), svc)
+
+    assert card.primary_language == "Python"
+    assert card.field_labels.get("primary_language") == ClaimLabel.INFERENCE.value
+    assert card.project_type == "LLM/RAG application framework"
+    assert card.field_labels.get("project_type") == ClaimLabel.INFERENCE.value
 
 
 @pytest.mark.asyncio

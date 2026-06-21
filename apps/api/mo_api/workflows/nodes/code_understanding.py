@@ -10,6 +10,8 @@ logger = logging.getLogger("mo_api.code_understanding")
 import uuid
 from datetime import datetime, timezone
 
+from sqlmodel import Session
+
 from ...models.enums import (
     CODE_INSIGHT_LOCATOR_CORE_MODULE_PREFIX,
     CODE_INSIGHT_LOCATOR_EXECUTION_PATH,
@@ -21,6 +23,8 @@ from ...models.enums import (
     SourceType,
 )
 from ...models.evidence import EvidenceItem
+from ...services.report_seed_service import ReportSeedService
+from ...storage import db
 from ..execute_context import get_context, maybe_skip_node, publish_node_event
 from ..state import MOState
 
@@ -76,6 +80,7 @@ async def code_understanding(state: MOState) -> MOState:
         profile,
         [{"role": "user", "content": prompt}],
         max_tokens=512,
+        json_mode=True,
     )
     parsed = _parse_insights(raw)
     core_modules = parsed.get("core_modules") or []
@@ -186,6 +191,30 @@ async def code_understanding(state: MOState) -> MOState:
         item.model_dump(mode="json")
         for item in ctx.evidence_service.list_by_task(task_id)
     ]
+
+    try:
+        narrative_lines = ["代码结构分析识别了以下核心模块和执行路径："]
+        if modules:
+            narrative_lines.append("核心模块：" + ", ".join(str(m) for m in modules[:10]))
+        if execution_path:
+            narrative_lines.append(f"执行路径：{execution_path}")
+        with Session(db.get_engine()) as session:
+            ReportSeedService(session).upsert_seed(
+                task_id=task_id,
+                section_key="technical_route",
+                node=NODE_ID,
+                narrative_seed="\n".join(narrative_lines),
+                structured_data={
+                    "core_modules": [str(m) for m in modules[:10]],
+                    "execution_path": str(execution_path),
+                    "code_insights": code_insights,
+                    "primary_repo": str(primary_repo),
+                },
+                evidence_ids=evidence_ids,
+                warnings=[] if primary_repo != "unknown" else ["仓库归因不完整"],
+            )
+    except Exception as exc:
+        logger.warning("technical_route seed write failed: %s", exc)
 
     return {
         "code_insights": code_insights,

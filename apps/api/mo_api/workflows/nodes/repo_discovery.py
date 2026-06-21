@@ -183,23 +183,88 @@ def _merge_seeds_and_selection(
     return merged
 
 
+def _is_rag_framework_topic(goal: str, template: str | None = None) -> bool:
+    text = f"{goal} {template or ''}".lower()
+    return "rag" in text and any(
+        marker in text
+        for marker in (
+            "framework",
+            "architecture",
+            "架构",
+            "框架",
+            "comparison",
+            "对比",
+            "调研",
+        )
+    )
+
+
+def _rag_framework_candidates() -> list[RepoCandidate]:
+    """Stable built-in candidates for the RAG framework survey demo."""
+    return [
+        RepoCandidate(
+            repo_url="https://github.com/langchain-ai/langchain",
+            repo_name="langchain-ai/langchain",
+            description="LLM application framework with chains, tools, agents, and retrieval integrations.",
+            stars=95000,
+            language="Python",
+            topics=["llm", "rag", "agents", "framework"],
+            relevance_score=0.98,
+            relevance_reason="内置 RAG 架构调研候选：LLM/RAG 应用编排生态代表。",
+            selected=True,
+            discovered_by="github_search",
+        ),
+        RepoCandidate(
+            repo_url="https://github.com/run-llama/llama_index",
+            repo_name="run-llama/llama_index",
+            description="Data framework focused on indexing, retrieval, and RAG application pipelines.",
+            stars=38000,
+            language="Python",
+            topics=["rag", "llm", "retrieval", "index"],
+            relevance_score=0.96,
+            relevance_reason="内置 RAG 架构调研候选：面向 RAG 数据索引与检索链路。",
+            selected=True,
+            discovered_by="github_search",
+        ),
+        RepoCandidate(
+            repo_url="https://github.com/deepset-ai/haystack",
+            repo_name="deepset-ai/haystack",
+            description="Framework for production search, retrieval, and LLM pipelines.",
+            stars=17000,
+            language="Python",
+            topics=["rag", "search", "llm", "pipeline"],
+            relevance_score=0.94,
+            relevance_reason="内置 RAG 架构调研候选：搜索/检索管道与生产 RAG 场景代表。",
+            selected=True,
+            discovered_by="github_search",
+        ),
+    ]
+
+
 async def discover_candidates(
     goal: str,
     repo_urls: list[str],
     *,
     adapter: RepoDiscoveryAdapter,
     gateway: ModelGateway,
+    template: str | None = None,
 ) -> tuple[list[RepoCandidate], str | None]:
     """核心发现流程（可注入 adapter/gateway，便于单测）。"""
     settings = get_settings()
     note: str | None = None
     discovered: list[RepoCandidate] = []
+    builtins = _rag_framework_candidates() if _is_rag_framework_topic(goal, template) else []
 
     # DemoMode：离线返回预烤候选，保证无网络也能演示自动发现（F-014）
     if getattr(settings, "demo_mode", False):
         from ...demo.fixtures import build_demo_repo_candidates
 
         discovered = build_demo_repo_candidates()
+        if builtins:
+            builtin_urls = {c.repo_url for c in builtins}
+            discovered = builtins + [
+                c for c in discovered if c.repo_url not in builtin_urls
+            ]
         merged = _merge_seeds_and_selection(discovered, repo_urls)
         return merged, "DemoMode：使用离线预烤候选仓库。"
 
@@ -217,9 +282,18 @@ async def discover_candidates(
             discovered = []
         if discovered:
             await _rerank(goal, discovered, gateway)
-            discovered.sort(key=lambda c: c.relevance_score, reverse=True)
+            if builtins:
+                builtin_urls = {c.repo_url for c in builtins}
+                discovered = builtins + [
+                    c for c in discovered if c.repo_url not in builtin_urls
+                ]
+            discovered.sort(key=lambda c: (not c.selected, -c.relevance_score, -c.stars))
     elif not settings.repo_discovery_enabled:
         note = "自动发现已禁用（REPO_DISCOVERY_ENABLED=false），仅使用用户提供的仓库。"
+
+    if builtins and not discovered:
+        discovered = builtins
+        note = "使用内置 RAG 架构调研候选仓库；可在计划页改选。"
 
     merged = _merge_seeds_and_selection(discovered, repo_urls)
     if not merged and not note:
@@ -243,12 +317,19 @@ def repo_discovery(state: MOState) -> MOState:
     """PlanMode 同步节点：调用异步发现流程，把候选写入图状态。"""
     goal = state.get("goal", "") or ""
     repo_urls = list(state.get("repo_urls") or [])
+    template = state.get("template")
 
     adapter = get_repo_discovery_adapter()
     gateway = get_model_gateway()
 
     candidates, note = _run_sync(
-        discover_candidates(goal, repo_urls, adapter=adapter, gateway=gateway)
+        discover_candidates(
+            goal,
+            repo_urls,
+            adapter=adapter,
+            gateway=gateway,
+            template=str(template) if template else None,
+        )
     )
 
     update: MOState = {

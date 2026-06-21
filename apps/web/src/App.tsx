@@ -49,7 +49,10 @@ export default function App() {
           <Route path="comparison" element={<ComparisonPage />} />
           <Route path="report" element={<ReportPage />} />
           <Route path="report/full" element={<ReportPage />} />
+          <Route path="report/data" element={<ReportPage />} />
+          <Route path="report/evidence" element={<ReportPage />} />
           <Route path="report/sections/:sectionKey" element={<ReportPage />} />
+          <Route path="report/sections/:sectionKey/data" element={<ReportPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

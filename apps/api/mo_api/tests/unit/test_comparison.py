@@ -23,6 +23,10 @@ from mo_api.services.comparison_service import (
     compute_rankings,
     recompute_matrix,
 )
+from mo_api.workflows.nodes.comparison_builder import (
+    _fallback_dimension_score,
+    _needs_score_fallback,
+)
 from mo_api.storage.repositories import ComparisonRepository, PlanRepository
 from mo_api.storage.tables import TaskTable
 
@@ -298,6 +302,17 @@ def test_dimension_score_claim_label() -> None:
         label=ClaimLabel.PENDING,
     )
     assert ds.label is ClaimLabel.PENDING
+
+
+def test_comparison_fallback_scores_from_repo_card_signals() -> None:
+    card = _make_repo_card("t1", "https://github.com/o/a", "repo-a")
+    score, rationale = _fallback_dimension_score(card, "reproducibility")
+    assert 0.0 < score <= 1.0
+    assert "RepoCard" in rationale
+    assert "project_type=" not in rationale
+    assert _needs_score_fallback(0.5, "评分依据不足") is True
+    assert _needs_score_fallback(0.2, '{"score": 0.2,') is True
+    assert _needs_score_fallback(score, rationale) is False
 
 
 @pytest.mark.asyncio

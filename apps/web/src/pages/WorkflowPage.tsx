@@ -28,7 +28,7 @@ import {
 import { SupportingDrawer } from '@/components/common/SupportingDrawer'
 import { EvidenceSummary } from '@/components/common/EvidenceSummary'
 import { PageCommandBar } from '@/components/common/PageCommandBar'
-import { SectionRail } from '@/components/common/visual'
+import { MetricChip, SectionRail } from '@/components/common/visual'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -180,6 +180,35 @@ function WorkflowCanvas() {
   )
 
   const selectedEvent = selectedStep ? getNodeEvent(selectedStep.node_id) : undefined
+  const workflowStatusCounts = useMemo(() => {
+    const counts = {
+      total: plan?.proposed_steps.length ?? 0,
+      completed: 0,
+      running: 0,
+      waiting_user: 0,
+      failed: 0,
+      skipped: 0,
+    }
+
+    for (const step of plan?.proposed_steps ?? []) {
+      const status =
+        nodeStatuses[step.node_id] ??
+        (step.status === 'skipped' ? 'skipped' : 'pending')
+      if (status === 'completed') {
+        counts.completed += 1
+      } else if (status === 'running') {
+        counts.running += 1
+      } else if (status === 'waiting_user') {
+        counts.waiting_user += 1
+      } else if (status === 'failed') {
+        counts.failed += 1
+      } else if (status === 'skipped') {
+        counts.skipped += 1
+      }
+    }
+
+    return counts
+  }, [nodeStatuses, plan])
   const waitingStep = plan?.proposed_steps.find(
     (s) => nodeStatuses[s.node_id] === 'waiting_user',
   )
@@ -275,7 +304,34 @@ function WorkflowCanvas() {
 
           <PageLayout ratio="3:1">
             <PrimaryWorkArea title="执行工作流">
-              <Card>
+              <WorkflowStatusStrip counts={workflowStatusCounts} />
+
+              <Card className="lg:hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">移动端时间线</CardTitle>
+                  <CardDescription>点开步骤可查看输入、输出、证据、日志与审批动作。</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SectionRail
+                    items={plan.proposed_steps.map((s) => {
+                      const status =
+                        nodeStatuses[s.node_id] ??
+                        (s.status === 'skipped' ? 'skipped' : 'pending')
+                      return {
+                        id: s.node_id,
+                        label: s.title,
+                        status,
+                        description: (
+                          <NodeStatusBadge status={status} className="mt-1" />
+                        ),
+                        onClick: () => openDrawer(s),
+                      }
+                    })}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="hidden lg:block">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">节点图</CardTitle>
                   <CardDescription>点击节点查看详情与审批</CardDescription>
@@ -299,11 +355,13 @@ function WorkflowCanvas() {
             </PrimaryWorkArea>
 
             {/* 辅助面板：执行进度摘要 */}
-            <SupportingPanel title="执行状态">
+            <SupportingPanel title="执行状态" className="hidden lg:block">
               <div className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
                 <SectionRail
                   items={plan.proposed_steps.map((s) => {
-                    const status = nodeStatuses[s.node_id] ?? 'pending'
+                    const status =
+                      nodeStatuses[s.node_id] ??
+                      (s.status === 'skipped' ? 'skipped' : 'pending')
                     return {
                       id: s.node_id,
                       label: s.title,
@@ -354,12 +412,23 @@ function WorkflowCanvas() {
             {selectedStep && (
               <div className="space-y-4">
                 <section className="space-y-2 rounded-md border bg-muted/30 p-3">
-                  <p className="font-medium">步骤说明</p>
+                  <p className="font-medium">该步骤在做什么</p>
                   <p className="break-words text-muted-foreground">{selectedStep.description}</p>
                 </section>
-                {nodeStatuses[selectedStep.node_id] && (
-                  <NodeStatusBadge status={nodeStatuses[selectedStep.node_id]} />
-                )}
+                <section className="space-y-2 rounded-md border p-3">
+                  <p className="font-medium">当前状态</p>
+                  <NodeStatusBadge
+                    status={
+                      nodeStatuses[selectedStep.node_id] ??
+                      (selectedStep.status === 'skipped' ? 'skipped' : 'pending')
+                    }
+                  />
+                  {selectedEvent?.created_at && (
+                    <p className="text-xs text-muted-foreground">
+                      最近更新：{new Date(selectedEvent.created_at).toLocaleString()}
+                    </p>
+                  )}
+                </section>
                 <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2 rounded-md border p-3">
                   <dt className="text-muted-foreground">工具</dt>
                   <dd className="min-w-0 break-words" title={selectedStep.tool}>
@@ -395,7 +464,7 @@ function WorkflowCanvas() {
                 {selectedEvent?.logs && selectedEvent.logs.length > 0 && (
                   <section className="rounded-md border p-3">
                     <p className="font-medium">日志</p>
-                    <ul className="mt-2 max-h-48 list-inside list-disc space-y-1 overflow-y-auto pr-1 text-muted-foreground">
+                    <ul className="mo-log-surface mt-2 max-h-48 list-inside list-disc space-y-1 overflow-y-auto rounded-md border p-3 pr-1 text-muted-foreground">
                       {selectedEvent.logs.map((log) => (
                         <li key={log} className="break-words">{log}</li>
                       ))}
@@ -443,6 +512,30 @@ function WorkflowCanvas() {
         </div>
       )}
     </QueryState>
+  )
+}
+
+interface WorkflowStatusCounts {
+  total: number
+  completed: number
+  running: number
+  waiting_user: number
+  failed: number
+  skipped: number
+}
+
+function WorkflowStatusStrip({ counts }: { counts: WorkflowStatusCounts }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-wrap gap-2 pt-4">
+        <MetricChip label="总节点" value={counts.total} tone="slate" />
+        <MetricChip label="completed" value={counts.completed} tone="green" />
+        <MetricChip label="running" value={counts.running} tone="blue" />
+        <MetricChip label="waiting_user" value={counts.waiting_user} tone="amber" />
+        <MetricChip label="failed" value={counts.failed} tone="red" />
+        <MetricChip label="skipped" value={counts.skipped} tone="slate" />
+      </CardContent>
+    </Card>
   )
 }
 
