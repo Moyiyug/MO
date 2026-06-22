@@ -56,7 +56,11 @@ from .report_evidence import (
     build_evidence_digest,
     format_claim_for_markdown,
 )
-from .report_polish import FinalReportPolisher, SectionDraft, SectionPolisher
+from .report_polish import FinalReportPolisher, SectionDraft, SectionPolisher, build_safe_deep_research_fallback
+from .research_synthesis import (
+    ResearchSynthesisService,
+    write_synthesis_seeds,
+)
 from .state_machine import ensure_transition
 
 
@@ -156,6 +160,32 @@ class ReportService:
         claim_factory = ClaimFactory(evidence_digest)
 
         pending_warnings: list[str] = []
+
+        # 研究综合（PRD F4 / F8）
+        synthesis = None
+        quality = None
+        synthesis_warnings: list[str] = []
+        try:
+            synthesis, quality, synthesis_warnings = await ResearchSynthesisService(
+                self._ensure_gateway()
+            ).synthesize(context, evidence_digest=evidence_digest)
+            if synthesis_warnings:
+                pending_warnings.extend(synthesis_warnings)
+            # 写入 synthesis seeds
+            write_synthesis_seeds(
+                self.session,
+                task_id=task_id,
+                synthesis=synthesis,
+                quality=quality,
+                warnings=synthesis_warnings,
+            )
+            # 重新构建 context，确保刚写入的 synthesis seed 被 SectionPolisher 读取
+            context = ReportContextService(self.session).build(task_id)
+        except Exception as exc:
+            logger.warning("ResearchSynthesisService failed, continuing: %s", exc)
+            pending_warnings.append(f"研究综合失败（{str(exc)[:120]}），报告仍基于原始章节生成。")
+            synthesis = None
+            quality = None
 
         # v2: 统一 kwargs，注入 digest / claim_factory / comparison / reproducibility
         kwargs: dict[str, Any] = dict(
@@ -274,9 +304,9 @@ class ReportService:
         appendix_groups = self._build_evidence_appendix_groups(evidence_items, evidence_digest)
 
         unique_pending_warnings = list(dict.fromkeys(pending_warnings))
-        fallback_markdown = self._assemble_markdown_v2(
-            sections,
-            executive_summary=executive_summary,
+        safe_fallback_markdown = build_safe_deep_research_fallback(
+            synthesis=synthesis,
+            quality=quality,
             pending_warnings=unique_pending_warnings,
         )
         markdown = await FinalReportPolisher(self._ensure_gateway()).polish_report(
@@ -284,7 +314,9 @@ class ReportService:
             sections=sections,
             pending_warnings=unique_pending_warnings,
             output_language=task.output_language.value,
-            fallback_markdown=fallback_markdown,
+            fallback_markdown=safe_fallback_markdown,
+            research_synthesis=synthesis,
+            research_quality=quality,
         )
         report = Report(
             id=uuid.uuid4().hex,
@@ -298,6 +330,8 @@ class ReportService:
             recommendation_summary=scenario_recs,
             evidence_appendix_groups=appendix_groups,
             report_version="v2",
+            research_synthesis=synthesis,
+            research_quality=quality,
         )
         saved = self.report_repo.upsert_by_task(report)
         if advance_status:

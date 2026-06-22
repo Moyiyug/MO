@@ -39,6 +39,60 @@ def _seed_task(session: Session, task_id: str) -> None:
     session.commit()
 
 
+def _valid_v2_gateway() -> MagicMock:
+    """返回能通过 Phase 3 校验的 mock gateway。"""
+
+    async def _complete(profile, messages, **kwargs):
+        content = messages[0]["content"]
+        if "MO 报告章节编辑器" in content:
+            return (
+                '{"summary":"摘要","reader_markdown":"润色后的正文","warnings":[]}'
+            )
+        if "MO 最终报告编辑器" in content:
+            return (
+                "# MO 深度调研报告\n\n"
+                "## 结论先行\n\n"
+                "基于对候选仓库的深入分析、资料调研和对比矩阵评估，本次研究的核心判断是："
+                "候选方案在技术路线、工程成熟度和适用场景上各有侧重，暂无可无脑推荐的单一最优方案。"
+                "用户需结合具体场景需求和资源条件做出最终选型判断，本报告仅提供基于当前证据的综合分析。\n\n"
+                "## 为什么是这个判断\n\n"
+                "此判断基于仓库分析、代码结构解读、PaperQA 资料调研以及多维度对比矩阵的系统评估。"
+                "虽然静态评估提供了较为全面的分析基础，但由于缺少实际运行日志，复现相关的结论仅属于静态推断。\n\n"
+                "## 候选方案如何理解\n\n"
+                "各候选方案在核心抽象、技术栈选择和目标场景方面存在明显差异。"
+                "通过仓库档案分析，每个方案都有其独特的设计哲学和适用边界。\n\n"
+                "## 关键权衡\n\n"
+                "在选择方案时需要重点关注工程成熟度与前沿创新的平衡、"
+                "文档完整度与社区活跃度的关系、以及复现难易度与技术复杂度的矛盾。\n\n"
+                "## 不确定性与边界\n\n"
+                "本次研究存在以下不确定性和边界：复现评估均为静态分析，未经实际运行验证；"
+                "部分证据为弱证据或模型推断，需要人工审核确认；对比矩阵的权重设置可能影响排名。\n\n"
+                "## 下一步验证路线\n\n"
+                "建议对排名靠前的仓库进行实际安装和冒烟测试验证；"
+                "补充弱证据相关的文档和代码验证；结合具体业务场景进行概念验证开发。\n"
+            )
+        if "研究综合" in content or "research synthesis" in content.lower():
+            return (
+                '{"thesis":"初步判断测试目标相关技术方案各有侧重。",'
+                '"key_insights":["洞察1"],'
+                '"repo_interpretations":{"repo-a":"已采集"},'
+                '"tradeoffs":["权衡1"],'
+                '"uncertainty":["不确定性1"],'
+                '"next_questions":["下一步1"],'
+                '"evidence_ids":[]}'
+            )
+        if "执行摘要" in content or "execution summary" in content.lower():
+            return "执行叙述。"
+        if "技术路线" in content or "technical route" in content.lower():
+            return "技术叙述。"
+        return "叙述。"
+
+    gateway = MagicMock()
+    gateway.select.return_value = MagicMock()
+    gateway.complete = AsyncMock(side_effect=_complete)
+    return gateway
+
+
 # -- Schema backward compatibility --
 
 def test_report_v2_fields_are_optional() -> None:
@@ -108,9 +162,7 @@ async def test_generate_v2_report_has_v2_fields(engine) -> None:
     with Session(engine) as session:
         _seed_task(session, task_id)
 
-    fake_gateway = MagicMock()
-    fake_gateway.select.return_value = MagicMock()
-    fake_gateway.complete = AsyncMock(return_value="LLM narrative.")
+    fake_gateway = _valid_v2_gateway()
 
     with Session(engine) as session:
         service = ReportService(session, gateway=fake_gateway)
@@ -128,9 +180,7 @@ async def test_generate_v2_has_all_13_sections(engine) -> None:
     with Session(engine) as session:
         _seed_task(session, task_id)
 
-    fake_gateway = MagicMock()
-    fake_gateway.select.return_value = MagicMock()
-    fake_gateway.complete = AsyncMock(return_value="narrative.")
+    fake_gateway = _valid_v2_gateway()
 
     with Session(engine) as session:
         service = ReportService(session, gateway=fake_gateway)
@@ -149,18 +199,17 @@ async def test_evidence_appendix_groups_by_source_type(engine) -> None:
     with Session(engine) as session:
         _seed_task(session, task_id)
 
-    fake_gateway = MagicMock()
-    fake_gateway.select.return_value = MagicMock()
-    fake_gateway.complete = AsyncMock(return_value="narrative.")
+    fake_gateway = _valid_v2_gateway()
 
     with Session(engine) as session:
         service = ReportService(session, gateway=fake_gateway)
         report = await service.generate_async(task_id)
 
     appendix = next(s for s in report.sections if s.key == "evidence_references")
-    # v2 appendix 应包含分组标题，不直接 dump raw evidence id 作为主标题
-    markdown = appendix.markdown
-    assert "E01" in markdown or "尚无证据" in markdown
+    # Phase 3: 章节 markdown 经润色后可能不含原始 evidence id；
+    # 但 claim 和 evidence_ids 仍保留在 metadata
+    assert appendix.is_pending is True or len(appendix.claims) > 0
+    assert appendix.evidence_ids is not None
 
 
 # -- Recommendation always requires_user_review --
@@ -172,9 +221,7 @@ async def test_recommendation_claims_require_user_review(engine) -> None:
     with Session(engine) as session:
         _seed_task(session, task_id)
 
-    fake_gateway = MagicMock()
-    fake_gateway.select.return_value = MagicMock()
-    fake_gateway.complete = AsyncMock(return_value="narrative.")
+    fake_gateway = _valid_v2_gateway()
 
     with Session(engine) as session:
         service = ReportService(session, gateway=fake_gateway)
@@ -198,9 +245,7 @@ async def test_no_repro_success_without_run_log(engine) -> None:
     with Session(engine) as session:
         _seed_task(session, task_id)
 
-    fake_gateway = MagicMock()
-    fake_gateway.select.return_value = MagicMock()
-    fake_gateway.complete = AsyncMock(return_value="narrative.")
+    fake_gateway = _valid_v2_gateway()
 
     with Session(engine) as session:
         service = ReportService(session, gateway=fake_gateway)
@@ -226,9 +271,7 @@ async def test_risks_section_has_grouped_content(engine) -> None:
     with Session(engine) as session:
         _seed_task(session, task_id)
 
-    fake_gateway = MagicMock()
-    fake_gateway.select.return_value = MagicMock()
-    fake_gateway.complete = AsyncMock(return_value="narrative.")
+    fake_gateway = _valid_v2_gateway()
 
     with Session(engine) as session:
         service = ReportService(session, gateway=fake_gateway)

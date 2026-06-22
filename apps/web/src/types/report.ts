@@ -59,6 +59,29 @@ export interface EvidenceAppendixGroup {
   evidence_ids: string[]
 }
 
+export interface ResearchSynthesis {
+  thesis: string
+  key_insights: string[]
+  repo_interpretations: Record<string, string>
+  tradeoffs: string[]
+  uncertainty: string[]
+  next_questions: string[]
+  evidence_ids: string[]
+}
+
+export interface ResearchQuality {
+  research_depth: 'shallow' | 'medium' | 'deep'
+  confidence_level: 'low' | 'medium' | 'high'
+  evidence_coverage: number
+  limitations: string[]
+  has_paperqa_answer: boolean
+  has_web_report: boolean
+  repo_card_count: number
+  has_comparison: boolean
+  has_reproducibility: boolean
+  weak_or_missing_evidence_count: number
+}
+
 export interface ReportResponse {
   id: string
   task_id: string
@@ -72,4 +95,7 @@ export interface ReportResponse {
   recommendation_summary?: ScenarioRecommendation[]
   evidence_appendix_groups?: EvidenceAppendixGroup[]
   report_version?: string
+  // 深度研究报告（PRD F4 / F8）
+  research_synthesis?: ResearchSynthesis | null
+  research_quality?: ResearchQuality | null
 }

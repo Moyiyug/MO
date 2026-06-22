@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { BookOpen, Database, FileText, ShieldAlert } from 'lucide-react'
+import { BookOpen, Database, FileText, ShieldAlert, TrendingUp } from 'lucide-react'
 
 import { ClaimLabel } from '@/components/common/ClaimLabel'
 import { SafeMarkdown } from '@/components/common/SafeMarkdown'
@@ -9,6 +9,18 @@ import { REPORT_VIEW_COPY } from '@/lib/uiCopy'
 import type { ReportResponse } from '@/types/report'
 
 import { ReportWarningsCard } from './ReportWarningsCard'
+
+function depthLabel(depth: string): string {
+  if (depth === 'deep') return '深入'
+  if (depth === 'medium') return '中等'
+  return '浅层'
+}
+
+function confidenceLabel(level: string): string {
+  if (level === 'high') return '高'
+  if (level === 'medium') return '中'
+  return '低'
+}
 
 interface ReportReaderOverviewProps {
   taskId: string
@@ -27,32 +39,101 @@ export function ReportReaderOverview({
   pendingCount,
   weakClaimCount,
 }: ReportReaderOverviewProps) {
+  const synthesis = report.research_synthesis
+  const quality = report.research_quality
   const findings = report.key_findings ?? []
   const recommendations = report.recommendation_summary ?? []
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardContent className="space-y-3 pt-6">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <h2 className="text-lg font-semibold">报告摘要</h2>
-          </div>
-          <SafeMarkdown
-            markdown={
-              report.executive_summary ||
-              `本次调研围绕「${taskGoal ?? '未命名任务'}」展开。`
-            }
-          />
-          <div className="flex flex-wrap gap-2">
-            <MetricChip label="仓库" value={repoCount} />
-            <MetricChip label="章节" value={report.sections.length} tone="slate" />
-            {pendingCount > 0 && (
-              <MetricChip label="待确认" value={pendingCount} tone="amber" />
+      {/* 结论先行 */}
+      {synthesis && (
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-blue-600" aria-hidden />
+              <h2 className="text-lg font-semibold">结论先行</h2>
+            </div>
+            <SafeMarkdown
+              markdown={
+                synthesis.thesis ||
+                report.executive_summary ||
+                `本次调研围绕「${taskGoal ?? '未命名任务'}」展开。`
+              }
+            />
+            {synthesis.key_insights.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">关键洞察</p>
+                <ul className="list-disc space-y-1 pl-5 text-sm">
+                  {synthesis.key_insights.slice(0, 3).map((insight, i) => (
+                    <li key={i}>{insight}</li>
+                  ))}
+                </ul>
+              </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 可信度与边界 */}
+      {quality && (
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <h2 className="text-lg font-semibold">可信度与边界</h2>
+            <div className="flex flex-wrap gap-2">
+              <MetricChip
+                label="研究深度"
+                value={depthLabel(quality.research_depth)}
+                tone={quality.research_depth === 'deep' ? 'green' : quality.research_depth === 'medium' ? 'blue' : 'amber'}
+              />
+              <MetricChip
+                label="置信度"
+                value={confidenceLabel(quality.confidence_level)}
+                tone={quality.confidence_level === 'high' ? 'green' : quality.confidence_level === 'medium' ? 'blue' : 'amber'}
+              />
+              <MetricChip label="仓库" value={repoCount} />
+              {pendingCount > 0 && (
+                <MetricChip label="待确认" value={pendingCount} tone="amber" />
+              )}
+            </div>
+            {quality.limitations.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">限制</p>
+                {quality.limitations.slice(0, 4).map((item, i) => (
+                  <p key={i} className="text-sm text-muted-foreground">
+                    - {item}
+                  </p>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* fallback: 无 synthesis 时显示旧版摘要 */}
+      {!synthesis && (
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-muted-foreground" aria-hidden />
+              <h2 className="text-lg font-semibold">报告摘要</h2>
+            </div>
+            <SafeMarkdown
+              markdown={
+                report.executive_summary ||
+                `本次调研围绕「${taskGoal ?? '未命名任务'}」展开。`
+              }
+            />
+            <div className="flex flex-wrap gap-2">
+              <MetricChip label="仓库" value={repoCount} />
+              <MetricChip label="章节" value={report.sections.length} tone="slate" />
+              {pendingCount > 0 && (
+                <MetricChip label="待确认" value={pendingCount} tone="amber" />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {findings.length > 0 && (
         <Card>
@@ -108,6 +189,7 @@ export function ReportReaderOverview({
         weakClaimCount={weakClaimCount}
       />
 
+      {/* 阅读入口 */}
       <Card>
         <CardContent className="space-y-3 pt-6">
           <h2 className="text-lg font-semibold">阅读入口</h2>

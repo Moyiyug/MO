@@ -53,7 +53,12 @@ async def test_generate_async_pending_warnings(engine) -> None:
     assert len(report.sections) == len(REPORT_SECTION_KEYS)
     assert any("M8" in w or "对比" in w for w in report.pending_warnings)
     assert any("M9" in w or "复现" in w for w in report.pending_warnings)
-    assert "[pending]" in report.markdown or "[inference]" in report.markdown
+    # Phase 3: reader markdown 使用安全 fallback，不含 [pending]/[inference] 标签；
+    # 标签保留在 sections[].claims 中
+    all_labels = {
+        c.label.value for s in report.sections for c in s.claims
+    }
+    assert ClaimLabel.PENDING.value in all_labels or ClaimLabel.INFERENCE.value in all_labels
 
     with Session(engine) as session:
         task = TaskRepository(session).get(task_id)

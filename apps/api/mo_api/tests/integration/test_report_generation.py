@@ -97,7 +97,8 @@ async def test_report_generation_and_export(client, created_task_id, engine) -> 
 
     repro_section = next(s for s in report["sections"] if s["key"] == "reproducibility")
     assert repro_section["is_pending"] is False
-    assert "static_reproducibility_assessment" in repro_section["markdown"]
+    # Phase 3: 章节润色后不直接包含内部术语；结构化数据保留在 metadata
+    assert "structured_markdown" in (repro_section.get("metadata") or {})
 
     repro_resp = await client.get(f"/api/tasks/{created_task_id}/reproducibility")
     assert repro_resp.status_code == 200
@@ -110,8 +111,10 @@ async def test_report_generation_and_export(client, created_task_id, engine) -> 
     assert export_resp.status_code == 200
     assert export_resp.headers["content-type"].startswith("text/markdown")
     body = export_resp.text
-    assert "[pending]" in body
-    assert "[inference]" in body
+    # Phase 3: 深度研究报告叙事版不含 [pending]/[inference] 标签；
+    # 这些标签保留在 report.sections[].claims 中（数据视图可查）
+    assert len(body) > 800
+    assert "结论先行" in body or "结论" in body
 
     confirm_resp = await client.post(
         f"/api/tasks/{created_task_id}/confirm-report"

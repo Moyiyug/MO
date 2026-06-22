@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from .enums import ClaimLabel
 from .evidence import ReportClaim
+from .research_synthesis import ResearchQuality, ResearchSynthesis
 
 # PRD F-011 规定的 13 段报告章节 key（顺序固定）
 REPORT_SECTION_KEYS: list[str] = [
@@ -104,3 +105,7 @@ class Report(BaseModel):
     recommendation_summary: list[ScenarioRecommendation] = Field(default_factory=list)
     evidence_appendix_groups: list[EvidenceAppendixGroup] = Field(default_factory=list)
     report_version: str = "v2"
+
+    # 深度研究报告（PRD F4 / F8）
+    research_synthesis: ResearchSynthesis | None = None
+    research_quality: ResearchQuality | None = None
