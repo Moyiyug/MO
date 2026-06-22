@@ -253,16 +253,16 @@ describe('Page-level ornament integration', () => {
 
   it('Pages set explicit ornament variants matching page semantics', () => {
     const tasks = readSource('pages', 'TaskCreatePage.tsx')
-    assert.match(tasks, /ornament="handoff"/)
+    assert.match(tasks, /ornament="hand-left"/)
 
     const plan = readSource('pages', 'PlanReviewPage.tsx')
-    assert.match(plan, /ornament="route"/)
+    assert.match(plan, /ornament="research-flow"/)
 
     const workflow = readSource('pages', 'WorkflowPage.tsx')
-    assert.match(workflow, /ornament="constellation"/)
+    assert.match(workflow, /ornament="research-flow"/)
 
     const comparison = readSource('pages', 'ComparisonPage.tsx')
-    assert.match(comparison, /ornament="blueprint"/)
+    assert.match(comparison, /ornament="hand-right"/)
 
     const history = readSource('pages', 'HistoryPage.tsx')
     assert.match(history, /ornament="manuscript"/)
@@ -272,7 +272,7 @@ describe('Page-level ornament integration', () => {
     const src = readSource('pages', 'ReportPage.tsx')
     assert.match(src, /reportOrnament/)
     assert.match(src, /'manuscript'/)
-    assert.match(src, /'blueprint'/)
-    assert.match(src, /'constellation'/)
+    assert.match(src, /'spark-field'/)
+    // evidence view now uses manuscript as well (cleaner reading experience)
   })
 })

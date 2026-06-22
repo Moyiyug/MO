@@ -115,7 +115,7 @@ export function ComparisonPage() {
             title={guide.title}
             whatNow={guide.whatNow}
             primaryAction={{ label: guide.primaryAction, href: `/tasks/${taskId}/report` }}
-            ornament="blueprint"
+            ornament="hand-right"
             ornamentLabel={false}
           />
 

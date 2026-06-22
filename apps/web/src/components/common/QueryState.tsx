@@ -4,7 +4,9 @@ import { AlertCircle, Inbox, PauseCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { MOError } from '@/api/client'
-import { BlueprintEmptyState, BlueprintSkeleton } from '@/components/common/visual'
+import { BlueprintEmptyState } from '@/components/common/visual'
+import { WaitingGuide } from '@/components/common/visual/WaitingGuide'
+import type { WaitingGuideVariant } from '@/components/common/visual/WaitingGuide'
 
 interface EmptyAction {
   label: string
@@ -28,6 +30,11 @@ interface QueryStateProps {
   blockedDescription?: string
   blockedAction?: { label: string; onClick: () => void }
   onRetry?: () => void
+  /** Loading 状态定制文案 */
+  loadingTitle?: string
+  loadingDescription?: string
+  loadingVariant?: WaitingGuideVariant
+  loadingSteps?: string[]
   children: ReactNode
 }
 
@@ -61,10 +68,22 @@ export function QueryState({
   blockedDescription,
   blockedAction,
   onRetry,
+  loadingTitle,
+  loadingDescription,
+  loadingVariant = 'loading',
+  loadingSteps,
   children,
 }: QueryStateProps) {
   if (isLoading) {
-    return <BlueprintSkeleton className="my-12" lines={5} />
+    return (
+      <WaitingGuide
+        className="my-12"
+        variant={loadingVariant}
+        title={loadingTitle ?? '正在准备页面'}
+        description={loadingDescription ?? 'MO 正在读取数据并整理展示内容。'}
+        steps={loadingSteps}
+      />
+    )
   }
 
   if (isError && error) {

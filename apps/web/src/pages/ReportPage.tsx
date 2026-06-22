@@ -140,10 +140,10 @@ export function ReportPage() {
       return 'manuscript'
     }
     if (viewMode === 'data-overview' || viewMode === 'data-section') {
-      return 'blueprint'
+      return 'spark-field'
     }
     if (viewMode === 'evidence') {
-      return 'constellation'
+      return 'manuscript'
     }
     return 'manuscript'
   }, [viewMode])

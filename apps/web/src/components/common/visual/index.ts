@@ -6,10 +6,15 @@ export { MetricChip } from './MetricChip'
 export { SectionRail } from './SectionRail'
 export { useMotionSafe } from './useMotionSafe'
 export { OrnamentLayer } from './OrnamentLayer'
+export { OrnamentGlyph } from './ornamentGlyphs'
+export { PageOrnamentFrame } from './PageOrnamentFrame'
+export { WaitingGuide } from './WaitingGuide'
+export type { WaitingGuideVariant } from './WaitingGuide'
 export { VisualGuideCard } from './VisualGuideCard'
 export type {
   OrnamentVariant,
   OrnamentPlacement,
   OrnamentDensity,
   OrnamentTone,
+  OrnamentMotion,
 } from './ornamentTypes'

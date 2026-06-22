@@ -1,6 +1,7 @@
-import { Link, Outlet, useParams } from 'react-router-dom'
+import { Link, Outlet, useLocation, useParams } from 'react-router-dom'
 
 import { TaskStatusBadge } from '@/components/common/StatusBadge'
+import { PageOrnamentFrame } from '@/components/common/visual/PageOrnamentFrame'
 import { useTask } from '@/api/tasks'
 import { cn } from '@/lib/utils'
 
@@ -11,9 +12,19 @@ const NAV = [
   { to: 'report', label: '报告' },
 ] as const
 
+function getPagePreset(pathname: string) {
+  if (pathname.includes('/plan')) return 'plan' as const
+  if (pathname.includes('/workflow')) return 'workflow' as const
+  if (pathname.includes('/comparison')) return 'comparison' as const
+  if (pathname.includes('/report')) return 'report' as const
+  return 'default' as const
+}
+
 export function AppLayout() {
   const { taskId } = useParams<{ taskId: string }>()
   const { data: task } = useTask(taskId)
+  const location = useLocation()
+  const preset = getPagePreset(location.pathname)
 
   return (
     <div className="min-h-svh flex flex-col">
@@ -54,7 +65,9 @@ export function AppLayout() {
         </div>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 pb-24">
-        <Outlet />
+        <PageOrnamentFrame preset={preset}>
+          <Outlet />
+        </PageOrnamentFrame>
       </main>
     </div>
   )

@@ -8,6 +8,7 @@ import {
 import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
 
 import { NodeStatusBadge } from '@/components/common/StatusBadge'
+import { OrnamentLayer } from '@/components/common/visual/OrnamentLayer'
 import { NODE_STYLE } from '@/features/workflow/statusColor'
 import { cn } from '@/lib/utils'
 import { STEP_TOOL_COPY } from '@/lib/uiCopy'
@@ -30,15 +31,35 @@ function StepNodeComponent({ data }: NodeProps<Node<StepNodeData>>) {
       />
     ) : null
 
+  const ornament =
+    displayStatus === 'running' ? (
+      <OrnamentLayer
+        variant="research-flow"
+        motion="draw"
+        density="low"
+        tone="blue"
+        size="sm"
+      />
+    ) : displayStatus === 'waiting_user' ? (
+      <OrnamentLayer
+        variant="halo"
+        motion="pulse"
+        density="low"
+        tone="amber"
+        size="sm"
+      />
+    ) : null
+
   return (
     <div
       className={cn(
-        'mo-blueprint-panel min-w-[200px] max-w-[240px] rounded-lg border-2 px-3 py-2 shadow-sm',
+        'mo-ornament-host mo-blueprint-panel min-w-[200px] max-w-[240px] rounded-lg border-2 px-3 py-2 shadow-sm',
         NODE_STYLE[displayStatus],
       )}
     >
+      {ornament}
       <Handle type="target" position={Position.Left} className="!bg-slate-400" />
-      <div className="flex flex-col gap-1.5">
+      <div className="mo-ornament-content flex flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
           <span className="line-clamp-2 min-w-0 break-words text-sm font-medium leading-tight">
             {step.title}

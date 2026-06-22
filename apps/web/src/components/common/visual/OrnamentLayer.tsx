@@ -1,16 +1,20 @@
 import { cn } from '@/lib/utils'
 import type {
   OrnamentDensity,
+  OrnamentMotion,
   OrnamentPlacement,
   OrnamentTone,
   OrnamentVariant,
 } from './ornamentTypes'
+import { OrnamentGlyph } from './ornamentGlyphs'
 
 interface OrnamentLayerProps {
   variant?: OrnamentVariant
   placement?: OrnamentPlacement
   density?: OrnamentDensity
   tone?: OrnamentTone
+  motion?: OrnamentMotion
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
 }
 
@@ -18,6 +22,7 @@ const PLACEMENT_CLASS: Record<OrnamentPlacement, string> = {
   'top-right': 'items-start justify-end',
   'top-left': 'items-start justify-start',
   'bottom-right': 'items-end justify-end',
+  'bottom-left': 'items-end justify-start',
   center: 'items-center justify-center',
 }
 
@@ -26,6 +31,7 @@ const TONE_CLASS: Record<OrnamentTone, string> = {
   slate: 'text-slate-600/20',
   amber: 'text-amber-700/30',
   green: 'text-emerald-700/28',
+  violet: 'text-violet-700/28',
 }
 
 const DENSITY_CLASS: Record<OrnamentDensity, string> = {
@@ -34,95 +40,28 @@ const DENSITY_CLASS: Record<OrnamentDensity, string> = {
   high: 'opacity-75',
 }
 
-// ─── SVG Glyphs (no text, no ids — pure line art) ──────────────────────
-
-function BlueprintGlyph() {
-  return (
-    <>
-      <path
-        d="M18 92 C54 42 90 126 134 66 S210 52 222 28"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
-      <path d="M36 24 H198 M54 118 H220" stroke="currentColor" strokeWidth="0.8" opacity="0.55" />
-      <circle cx="62" cy="78" r="4" stroke="currentColor" strokeWidth="1" />
-      <circle cx="146" cy="64" r="6" stroke="currentColor" strokeWidth="1" />
-      <path d="M146 64 L198 40" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
-    </>
-  )
+const MOTION_CLASS: Record<OrnamentMotion, string> = {
+  none: '',
+  float: 'mo-ornament-float',
+  draw: 'mo-ornament-draw',
+  pulse: 'mo-ornament-pulse',
+  drift: 'mo-ornament-drift',
 }
 
-function ConstellationGlyph() {
-  return (
-    <>
-      <circle cx="34" cy="48" r="3.5" stroke="currentColor" strokeWidth="1" />
-      <circle cx="98" cy="28" r="2.5" stroke="currentColor" strokeWidth="0.9" />
-      <circle cx="162" cy="72" r="4" stroke="currentColor" strokeWidth="1" />
-      <circle cx="198" cy="36" r="3" stroke="currentColor" strokeWidth="0.9" />
-      <circle cx="124" cy="98" r="2.5" stroke="currentColor" strokeWidth="0.85" />
-      <circle cx="72" cy="110" r="3" stroke="currentColor" strokeWidth="0.9" />
-      <path d="M34 48 L98 28 L162 72 L198 36" stroke="currentColor" strokeWidth="0.7" opacity="0.5" />
-      <path d="M98 28 L124 98" stroke="currentColor" strokeWidth="0.6" opacity="0.4" />
-      <path d="M162 72 L124 98 L72 110" stroke="currentColor" strokeWidth="0.7" opacity="0.5" />
-    </>
-  )
+const SIZE_CLASS: Record<string, string> = {
+  sm: 'h-20 w-36',
+  md: 'h-28 w-48 max-w-[48%] sm:h-36 sm:w-64',
+  lg: 'h-44 w-72 sm:h-56 sm:w-[28rem]',
+  xl: 'h-64 w-[34rem] sm:h-80 sm:w-[42rem]',
 }
-
-function ManuscriptGlyph() {
-  return (
-    <>
-      <path d="M22 32 H172 M22 52 H188 M22 72 H166 M22 92 H196" stroke="currentColor" strokeWidth="0.9" opacity="0.5" />
-      <path d="M22 112 H148" stroke="currentColor" strokeWidth="0.7" opacity="0.35" />
-      <rect x="184" y="18" width="38" height="52" rx="2" stroke="currentColor" strokeWidth="1" opacity="0.6" />
-      <path d="M192 28 H212 M192 38 H214 M192 48 H206" stroke="currentColor" strokeWidth="0.7" opacity="0.42" />
-    </>
-  )
-}
-
-function HandoffGlyph() {
-  return (
-    <>
-      <path
-        d="M28 66 C52 36 84 106 112 80"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        opacity="0.55"
-      />
-      <path
-        d="M118 62 C132 38 160 52 176 34"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        opacity="0.55"
-      />
-      <circle cx="28" cy="66" r="6" stroke="currentColor" strokeWidth="1.1" opacity="0.55" />
-      <circle cx="176" cy="34" r="7" stroke="currentColor" strokeWidth="1.1" opacity="0.55" />
-      <circle cx="112" cy="80" r="5" stroke="currentColor" strokeWidth="1" opacity="0.5" />
-      <path d="M118 62 L112 80" stroke="currentColor" strokeWidth="0.7" opacity="0.45" />
-    </>
-  )
-}
-
-function RouteGlyph() {
-  return (
-    <>
-      <path d="M20 90 L72 90 L108 36 L174 36 L218 78" stroke="currentColor" strokeWidth="1.3" opacity="0.55" />
-      <circle cx="20" cy="90" r="5" stroke="currentColor" strokeWidth="1.1" opacity="0.55" />
-      <circle cx="72" cy="90" r="4.5" stroke="currentColor" strokeWidth="1" opacity="0.5" />
-      <circle cx="108" cy="36" r="4.5" stroke="currentColor" strokeWidth="1" opacity="0.5" />
-      <circle cx="174" cy="36" r="4.5" stroke="currentColor" strokeWidth="1" opacity="0.5" />
-      <circle cx="218" cy="78" r="5" stroke="currentColor" strokeWidth="1.1" opacity="0.55" />
-      <path d="M20 112 L72 112 L108 96" stroke="currentColor" strokeWidth="0.7" opacity="0.3" strokeDasharray="4 4" />
-    </>
-  )
-}
-
-// ─── Component ────────────────────────────────────────────────────────
 
 export function OrnamentLayer({
   variant = 'blueprint',
   placement = 'top-right',
   density = 'low',
   tone = 'blue',
+  motion = 'none',
+  size = 'md',
   className,
 }: OrnamentLayerProps) {
   if (variant === 'none') return null
@@ -140,14 +79,13 @@ export function OrnamentLayer({
     >
       <svg
         viewBox="0 0 240 140"
-        className="h-28 w-48 max-w-[48%] sm:h-36 sm:w-64"
+        className={cn(SIZE_CLASS[size], MOTION_CLASS[motion])}
         fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        focusable="false"
       >
-        {variant === 'blueprint' && <BlueprintGlyph />}
-        {variant === 'constellation' && <ConstellationGlyph />}
-        {variant === 'manuscript' && <ManuscriptGlyph />}
-        {variant === 'handoff' && <HandoffGlyph />}
-        {variant === 'route' && <RouteGlyph />}
+        <OrnamentGlyph variant={variant} />
       </svg>
     </div>
   )

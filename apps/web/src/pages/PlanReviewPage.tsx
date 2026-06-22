@@ -331,7 +331,7 @@ export function PlanReviewPage() {
             severity={blockReason ? 'warning' : needsApproval ? 'info' : undefined}
             statusBadge={<TaskStatusBadge status={task.status} />}
             hint={!blockReason && task?.status === 'PLANNING' ? '计划正在生成中，请稍候...' : undefined}
-            ornament="route"
+            ornament="research-flow"
             ornamentLabel={false}
           />
 

@@ -336,6 +336,50 @@
     padding-right: clamp(0rem, 8vw, 7rem);
   }
 
+  /* ─── Page Ornament Frame ─────────────────────────────────────── */
+
+  .mo-page-ornament-frame {
+    position: relative;
+    isolation: isolate;
+    min-height: 100%;
+  }
+
+  .mo-page-ornament-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .mo-page-ornament-content {
+    position: relative;
+    z-index: 10;
+    min-width: 0;
+  }
+
+  /* ─── Ornament Motion Classes ──────────────────────────────────── */
+
+  .mo-ornament-float {
+    animation: mo-ornament-float 7s ease-in-out infinite;
+  }
+
+  .mo-ornament-drift {
+    animation: mo-ornament-drift 10s ease-in-out infinite;
+  }
+
+  .mo-ornament-pulse {
+    animation: mo-ornament-pulse 4.8s ease-in-out infinite;
+  }
+
+  .mo-ornament-draw path,
+  .mo-ornament-draw circle,
+  .mo-ornament-draw ellipse {
+    stroke-dasharray: 280;
+    stroke-dashoffset: 280;
+    animation: mo-ornament-draw 3.6s ease-in-out infinite;
+  }
+
   @media (max-width: 640px) {
     .mo-ornament-layer {
       opacity: 0.18;
@@ -390,5 +434,54 @@
   }
   50% {
     box-shadow: 0 0 0 4px oklch(0.72 0.15 78 / 10%);
+  }
+}
+
+@keyframes mo-ornament-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0) rotate(-0.6deg);
+  }
+}
+
+@keyframes mo-ornament-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.22;
+  }
+  50% {
+    transform: translate3d(10px, -6px, 0);
+    opacity: 0.34;
+  }
+}
+
+@keyframes mo-ornament-pulse {
+  0%,
+  100% {
+    opacity: 0.20;
+    transform: scale(0.985);
+  }
+  50% {
+    opacity: 0.38;
+    transform: scale(1.015);
+  }
+}
+
+@keyframes mo-ornament-draw {
+  0% {
+    stroke-dashoffset: 280;
+    opacity: 0.16;
+  }
+  45% {
+    stroke-dashoffset: 0;
+    opacity: 0.42;
+  }
+  100% {
+    stroke-dashoffset: -280;
+    opacity: 0.18;
   }
 }

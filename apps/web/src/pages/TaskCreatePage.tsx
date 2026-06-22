@@ -8,7 +8,7 @@ import { useCreateTask, useGeneratePlan } from '@/api/tasks'
 import { StatusGuide } from '@/components/common/StatusGuide'
 import { PageLayout, PrimaryWorkArea } from '@/components/common/InfoHierarchy'
 import { PageCommandBar } from '@/components/common/PageCommandBar'
-import { MetricChip, VisualGuideCard } from '@/components/common/visual'
+import { MetricChip, PageOrnamentFrame, VisualGuideCard } from '@/components/common/visual'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -112,12 +112,13 @@ export function TaskCreatePage() {
   ].filter((item): item is string => Boolean(item))
 
   return (
+    <PageOrnamentFrame preset="task" className="min-h-[calc(100svh-3rem)]">
     <div className="mo-page-shell max-w-6xl pt-8 lg:pt-12">
       <StatusGuide
         title={guide.title}
         whatNow={guide.whatNow}
         blockReason={formError ?? undefined}
-        ornament="handoff"
+        ornament="hand-left"
         ornamentLabel={false}
         primaryAction={
           !formError
@@ -288,7 +289,7 @@ export function TaskCreatePage() {
             eyebrow="research setup"
             title="先定义研究问题"
             description="MO 会先生成计划，不会直接执行仓库代码。你可以在下一步确认候选仓库、权限和风险。"
-            ornament="handoff"
+            ornament="halo"
             steps={[
               '写清研究目标和候选范围',
               '审阅系统生成的调研计划',
@@ -321,5 +322,6 @@ export function TaskCreatePage() {
         </p>
       )}
     </div>
+    </PageOrnamentFrame>
   )
 }

@@ -278,7 +278,7 @@ function WorkflowCanvas() {
             whatNow={guide.whatNow}
             blockReason={blockReason}
             severity={task.status === 'FAILED' ? 'blocked' : blockReason ? 'warning' : undefined}
-            ornament="constellation"
+            ornament="research-flow"
             ornamentLabel={false}
             primaryAction={
               isPlanWaitingUser
