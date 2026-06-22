@@ -22,6 +22,7 @@ import {
 import { PageCommandBar } from '@/components/common/PageCommandBar'
 import { QueryState } from '@/components/common/QueryState'
 import { StatusGuide } from '@/components/common/StatusGuide'
+import type { OrnamentVariant } from '@/components/common/visual'
 import { TaskStatusBadge } from '@/components/common/StatusBadge'
 import { Card, CardContent } from '@/components/ui/card'
 import { ReportDataOverview } from '@/features/report/components/ReportDataOverview'
@@ -134,6 +135,19 @@ export function ReportPage() {
     })
   }
 
+  const reportOrnament = useMemo<OrnamentVariant>(() => {
+    if (viewMode === 'reader-full' || viewMode === 'reader-section' || viewMode === 'reader-summary') {
+      return 'manuscript'
+    }
+    if (viewMode === 'data-overview' || viewMode === 'data-section') {
+      return 'blueprint'
+    }
+    if (viewMode === 'evidence') {
+      return 'constellation'
+    }
+    return 'manuscript'
+  }, [viewMode])
+
   const summaryData = useMemo(() => {
     if (!report) return null
     const allClaims = report.sections.flatMap((section) => section.claims)
@@ -231,6 +245,8 @@ export function ReportPage() {
             disabled: generateMutation.isPending,
           }}
           statusBadge={<TaskStatusBadge status={task.status} />}
+          ornament="manuscript"
+          ornamentLabel={false}
         />
 
         <Card>
@@ -282,6 +298,8 @@ export function ReportPage() {
                   ? '报告中有待确认的结论，请审阅后确认'
                   : undefined
             }
+            ornament={reportOrnament}
+            ornamentLabel={false}
             severity={
               report.pending_warnings.length > 0 || task.status === 'REVIEW_REQUIRED'
                 ? 'warning'

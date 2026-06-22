@@ -36,7 +36,7 @@ export function EvidenceMarker({
   const content = (
     <>
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-70" aria-hidden />
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
       {strengthCopy && <span className="shrink-0 opacity-75">{strengthCopy.label}</span>}
       {item?.source_uri?.startsWith('http') && (
         <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden />

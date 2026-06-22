@@ -25,6 +25,8 @@ import { Link } from 'react-router-dom'
 import { AlertCircle, ArrowRight, CheckCircle2, HelpCircle, Info, PauseCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { OrnamentLayer } from '@/components/common/visual/OrnamentLayer'
+import type { OrnamentVariant } from '@/components/common/visual/ornamentTypes'
 import { cn } from '@/lib/utils'
 
 // ─── 类型定义 ──────────────────────────────────────────────────────────
@@ -104,6 +106,10 @@ export interface StatusGuideProps {
   statusBadge?: ReactNode
   /** 附加的提示信息（在引导文字下方） */
   hint?: string
+  /** 装饰图案类型，默认 'manuscript'；传 false 关闭 */
+  ornament?: OrnamentVariant | false
+  /** 右上角装饰文字，默认不显示；传字符串开启（仅装饰用途，aria-hidden） */
+  ornamentLabel?: string | false
   className?: string
 }
 
@@ -154,6 +160,8 @@ export function StatusGuide({
   secondaryActions,
   statusBadge,
   hint,
+  ornament = 'manuscript',
+  ornamentLabel = false,
   className,
 }: StatusGuideProps) {
   // 自动推断严重程度
@@ -163,10 +171,17 @@ export function StatusGuide({
 
   const style = SEVERITY_STYLE[severity]
 
+  const ornamentTone =
+    severity === 'warning' || severity === 'blocked'
+      ? 'amber'
+      : severity === 'success'
+        ? 'green'
+        : 'blue'
+
   return (
     <div
       className={cn(
-        'mo-blueprint-panel mo-dossier-surface relative overflow-hidden rounded-lg border px-5 py-4 shadow-sm shadow-slate-900/5',
+        'mo-ornament-host mo-blueprint-panel mo-dossier-surface relative overflow-hidden rounded-lg border px-5 py-4 shadow-sm shadow-slate-900/5',
         severity === 'warning' && 'mo-node-waiting',
         style.panel,
         className,
@@ -174,12 +189,34 @@ export function StatusGuide({
       role="status"
       aria-live="polite"
     >
-      <div className="mo-dossier-ornament" aria-hidden />
-      <div className={cn('mo-scan-line absolute inset-y-0 left-0 w-1.5', style.accent)} aria-hidden />
-      <div className="pointer-events-none absolute right-4 top-3 z-10 hidden font-mono text-[10px] uppercase tracking-[0.26em] text-muted-foreground/55 sm:block">
-        dossier
-      </div>
-      <div className="relative z-10 flex items-start gap-4">
+      {/* 装饰图案（默认 manuscript，低密度） */}
+      {ornament !== false && (
+        <OrnamentLayer
+          variant={ornament}
+          placement="top-right"
+          density="low"
+          tone={ornamentTone}
+        />
+      )}
+
+      {/* 扫描线（左侧装饰线） */}
+      <div
+        className={cn('mo-scan-line absolute inset-y-0 left-0 w-1.5', style.accent)}
+        aria-hidden
+      />
+
+      {/* 右上角装饰文字（默认关闭；仅装饰用途） */}
+      {ornamentLabel && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-4 top-3 z-0 hidden font-mono text-[10px] uppercase tracking-[0.26em] text-muted-foreground/35 lg:block"
+        >
+          {ornamentLabel}
+        </div>
+      )}
+
+      {/* 正文层 */}
+      <div className="mo-ornament-content flex items-start gap-4">
         {/* 图标 */}
         <div className="rounded-md border border-white/70 bg-background/72 p-1.5 shadow-sm">
           {style.icon}

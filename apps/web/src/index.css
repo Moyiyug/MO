@@ -46,6 +46,12 @@
   --mo-shadow-line: 0 1px 0 oklch(1 0 0 / 80%) inset, 0 16px 42px oklch(0.38 0.04 248 / 10%);
   --mo-radius-panel: 0.5rem;
 
+  --mo-ornament-blue: oklch(0.54 0.12 252 / 36%);
+  --mo-ornament-blue-strong: oklch(0.46 0.17 260 / 48%);
+  --mo-ornament-muted: oklch(0.48 0.03 245 / 18%);
+  --mo-ornament-amber: oklch(0.68 0.15 78 / 32%);
+  --mo-ornament-green: oklch(0.58 0.13 162 / 30%);
+
   --background: var(--mo-paper);
   --foreground: var(--mo-ink);
   --card: var(--mo-paper-glass);
@@ -162,11 +168,16 @@
   .mo-blueprint-panel::after {
     content: "";
     position: absolute;
-    z-index: 1;
+    z-index: 0;
     width: 1.35rem;
     height: 1.35rem;
     pointer-events: none;
     opacity: 0.68;
+  }
+
+  .mo-blueprint-panel > * {
+    position: relative;
+    z-index: 1;
   }
 
   .mo-blueprint-panel::before {
@@ -208,6 +219,7 @@
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
+    user-select: none;
   }
 
   .mo-dossier-ornament::before {
@@ -216,6 +228,7 @@
     inset: 0.75rem 0.9rem 0.75rem auto;
     width: min(30rem, 42%);
     opacity: 0.28;
+    pointer-events: none;
     background:
       radial-gradient(circle at 1.1rem 1.1rem, var(--mo-grid-dot) 0 1px, transparent 1.35px),
       linear-gradient(112deg, transparent 0 42%, var(--mo-grid) 42% calc(42% + 1px), transparent calc(42% + 1px) 100%);
@@ -231,6 +244,7 @@
     width: min(16rem, 32vw);
     height: 4.8rem;
     opacity: 0.35;
+    pointer-events: none;
     border-top: 1px solid var(--mo-line-strong);
     border-right: 1px solid var(--mo-line-strong);
     background:
@@ -241,8 +255,8 @@
   @media (max-width: 640px) {
     .mo-dossier-ornament::before,
     .mo-dossier-ornament::after {
-      opacity: 0.16;
-      width: 52%;
+      opacity: 0.12;
+      width: 48%;
     }
   }
 
@@ -290,6 +304,50 @@
       oklch(0.98 0.006 235 / 78%);
     background-size: 1.25rem 1.25rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  /* ─── Ornament CSS Contract ─────────────────────────────────────── */
+
+  .mo-ornament-host {
+    isolation: isolate;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mo-ornament-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .mo-ornament-layer svg {
+    overflow: visible;
+  }
+
+  .mo-ornament-content {
+    position: relative;
+    z-index: 10;
+    min-width: 0;
+  }
+
+  .mo-ornament-safe-tr {
+    padding-right: clamp(0rem, 8vw, 7rem);
+  }
+
+  @media (max-width: 640px) {
+    .mo-ornament-layer {
+      opacity: 0.18;
+    }
+
+    .mo-ornament-layer svg {
+      max-width: 44%;
+    }
+
+    .mo-ornament-safe-tr {
+      padding-right: 0;
+    }
   }
 }
 

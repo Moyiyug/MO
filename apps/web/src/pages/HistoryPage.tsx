@@ -177,6 +177,8 @@ export function HistoryPage() {
             ? [{ label: CTA_COPY.loadDemo, onClick: () => void handleSeedDemo() }]
             : undefined
         }
+        ornament="manuscript"
+        ornamentLabel={false}
       />
 
       <PageCommandBar

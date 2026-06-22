@@ -57,7 +57,7 @@ export function SectionRail({ items, className }: SectionRailProps) {
             <span className="min-w-0 flex-1 pb-4">
               <span className="block truncate text-sm font-medium">{item.label}</span>
               {item.description && (
-                <span className="mt-0.5 block text-xs text-muted-foreground">
+                <span className="mt-0.5 block break-words text-xs leading-5 text-muted-foreground">
                   {item.description}
                 </span>
               )}

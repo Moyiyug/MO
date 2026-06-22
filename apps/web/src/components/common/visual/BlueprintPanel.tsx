@@ -12,6 +12,8 @@ interface BlueprintPanelProps {
   className?: string
   contentClassName?: string
   as?: 'section' | 'div' | 'article'
+  /** 将 label/index 视为纯装饰（aria-hidden，更低透明度），默认 true */
+  decorativeLabel?: boolean
 }
 
 const ACCENT_CLASS: Record<NonNullable<BlueprintPanelProps['accent']>, string> = {
@@ -30,20 +32,36 @@ export function BlueprintPanel({
   className,
   contentClassName,
   as = 'section',
+  decorativeLabel = true,
 }: BlueprintPanelProps) {
   const motionSafe = useMotionSafe()
   const MotionTag =
     as === 'article' ? motion.article : as === 'div' ? motion.div : motion.section
+
+  const hasChrome = label || index !== undefined
 
   return (
     <MotionTag
       initial={motionSafe.initial}
       animate={motionSafe.animate}
       transition={motionSafe.transition}
-      className={cn('mo-blueprint-panel mo-card-hover', ACCENT_CLASS[accent], className)}
+      className={cn(
+        'mo-ornament-host mo-blueprint-panel mo-card-hover',
+        ACCENT_CLASS[accent],
+        className,
+      )}
     >
-      {(label || index !== undefined) && (
-        <div className="pointer-events-none absolute right-3 top-2 z-10 flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-muted-foreground/70">
+      {hasChrome && (
+        <div
+          aria-hidden={decorativeLabel ? true : undefined}
+          className={cn(
+            'pointer-events-none absolute right-3 top-2 z-0 flex items-center gap-2 text-[10px] uppercase tracking-[0.24em]',
+            decorativeLabel
+              ? 'text-muted-foreground/45'
+              : 'text-muted-foreground/70',
+            'sm:flex',
+          )}
+        >
           {label && <span>{label}</span>}
           {index !== undefined && (
             <span className="rounded-full border border-[var(--mo-line)] bg-background/70 px-1.5 py-0.5 font-mono">
@@ -52,7 +70,15 @@ export function BlueprintPanel({
           )}
         </div>
       )}
-      <div className={cn('relative z-10', contentClassName)}>{children}</div>
+      <div
+        className={cn(
+          'mo-ornament-content',
+          hasChrome && 'sm:pt-4',
+          contentClassName,
+        )}
+      >
+        {children}
+      </div>
     </MotionTag>
   )
 }

@@ -34,16 +34,16 @@ export function MetricChip({
     <span
       title={title}
       className={cn(
-        'inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium shadow-[0_1px_0_rgba(255,255,255,0.72)_inset]',
+        'inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium shadow-[0_1px_0_rgba(255,255,255,0.72)_inset]',
         TONE_CLASS[tone],
         className,
       )}
     >
-      {icon}
+      {icon && <span className="shrink-0">{icon}</span>}
       {value !== undefined && (
-        <span className="font-mono text-[11px] tabular-nums">{value}</span>
+        <span className="shrink-0 font-mono text-[11px] tabular-nums">{value}</span>
       )}
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   )
 }

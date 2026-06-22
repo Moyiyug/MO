@@ -278,6 +278,8 @@ function WorkflowCanvas() {
             whatNow={guide.whatNow}
             blockReason={blockReason}
             severity={task.status === 'FAILED' ? 'blocked' : blockReason ? 'warning' : undefined}
+            ornament="constellation"
+            ornamentLabel={false}
             primaryAction={
               isPlanWaitingUser
                 ? { label: '返回计划审阅', href: `/tasks/${taskId}/plan` }

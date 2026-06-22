@@ -8,7 +8,7 @@ import { useCreateTask, useGeneratePlan } from '@/api/tasks'
 import { StatusGuide } from '@/components/common/StatusGuide'
 import { PageLayout, PrimaryWorkArea } from '@/components/common/InfoHierarchy'
 import { PageCommandBar } from '@/components/common/PageCommandBar'
-import { MetricChip } from '@/components/common/visual'
+import { MetricChip, VisualGuideCard } from '@/components/common/visual'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -117,6 +117,8 @@ export function TaskCreatePage() {
         title={guide.title}
         whatNow={guide.whatNow}
         blockReason={formError ?? undefined}
+        ornament="handoff"
+        ornamentLabel={false}
         primaryAction={
           !formError
             ? {
@@ -282,6 +284,18 @@ export function TaskCreatePage() {
       </PageLayout>
 
         <aside className="space-y-3 lg:pt-8">
+          <VisualGuideCard
+            eyebrow="research setup"
+            title="先定义研究问题"
+            description="MO 会先生成计划，不会直接执行仓库代码。你可以在下一步确认候选仓库、权限和风险。"
+            ornament="handoff"
+            steps={[
+              '写清研究目标和候选范围',
+              '审阅系统生成的调研计划',
+              '批准后再执行仓库读取和分析',
+            ]}
+          />
+
           <div className="rounded-lg border bg-card/78 p-3 text-sm shadow-sm">
             <p className="font-medium">权限摘要</p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -298,18 +312,6 @@ export function TaskCreatePage() {
               <MetricChip label={`${permissions.max_runtime_minutes} min`} tone="slate" />
             </div>
           </div>
-          {[
-            ['1', '创建任务后进入调研计划，不会直接执行仓库代码'],
-            ['2', '仓库候选会在计划审阅页让你选择确认'],
-            ['3', '克隆、测试、依赖安装等高风险动作会再次审批'],
-          ].map(([step, text]) => (
-            <div key={step} className="rounded-lg border bg-card/78 p-3 text-sm shadow-sm">
-              <div className="mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
-                {step}
-              </div>
-              <p className="text-muted-foreground">{text}</p>
-            </div>
-          ))}
         </aside>
       </div>
 
